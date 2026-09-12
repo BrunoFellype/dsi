@@ -18,12 +18,58 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import GoogleButton from '../components/GoogleButton';
 
+
+import { useState } from "react";
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../services/firebase';
 export interface TelaCadastroProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
 export function TelaCadastro(props: TelaCadastroProps) {
+  const[email, setEmail] = useState("");
+  const[senha, setSenha] = useState("");
+  const[confirmarSenha, setConfirmarSenha] = useState("");
+
+  const[erro, setErro] = useState("");
+
+  async function criarConta() {
+    if (!email || !senha || !confirmarSenha){
+      setErro("Há campos não preenchidos!");
+      return;
+    }
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!emailValido) {
+      setErro("Informe um email válido!");
+      return;
+    }
+    if (senha.length < 8) {
+      setErro("A senha deve conter um mínimo de 8 caracteres!");
+      return;
+    }
+
+    if (!/[A-Za-z]/.test(senha) || !/[0-9]/.test(senha)) {
+      setErro("A senha deve conter pelo menos 1 letra e 1 número!");
+      return;
+    }
+
+    if (senha != confirmarSenha) {
+      setErro("Senhas diferentes!");
+      return;
+    }
+
+    try {
+      const user = await createUserWithEmailAndPassword(auth, email, senha);
+      router.replace('/telainicial');
+
+    } catch(error) {
+      setErro("Email já cadastrado!");
+    }
+  }
+  function continuarComGoogle(){
+    return;
+  }
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -65,7 +111,10 @@ export function TelaCadastro(props: TelaCadastroProps) {
                 placeholder="Digite seu email"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                value={email}
+                onChangeText={(texto) => {setEmail(texto); setErro("");}}
               />
+  
             </View>
 
             <View style={styles.field}>
@@ -80,6 +129,8 @@ export function TelaCadastro(props: TelaCadastroProps) {
                 placeholder="Digite sua senha"
                 secureTextEntry
                 autoCapitalize = "none"
+                value={senha}
+                onChangeText={(texto) => {setSenha(texto); setErro("")}}
               />
             </View>
 
@@ -95,13 +146,20 @@ export function TelaCadastro(props: TelaCadastroProps) {
                 placeholder="Confirme sua senha"
                 secureTextEntry
                 autoCapitalize = "none"
+                value={confirmarSenha}
+                onChangeText={(texto) => {setConfirmarSenha(texto); setErro("")}}
               />
             </View>
 
             <Button
               title="Criar conta"
-              onPress={() => {}}
+              onPress={() => criarConta()}
             />
+            {erro != "" &&(
+                <Text style={styles.errorText}>
+                  {erro}
+                </Text>
+              )}
           </View>
 
           {/* Separador */}
@@ -123,7 +181,7 @@ export function TelaCadastro(props: TelaCadastroProps) {
             style={styles.googleContainer}
           >
             <GoogleButton
-              onPress={() => {}}
+              onPress={() => {continuarComGoogle()}}
             />
           </View>
 
@@ -243,6 +301,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
     textDecorationLine: 'underline',
+  },
+
+  errorText: {
+    color: '#9e4141',
+    fontSize: 18
   },
 });
 

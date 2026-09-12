@@ -127,7 +127,7 @@ export function TelaLogin(props: TelaLoginProps) {
               </Text>
   
               <Pressable
-                onPress={() => {router.push('/cadastro')}}
+                onPress={() => {router.replace('/cadastro')}}
               >
                 <Text
                   testID="88:1066"
