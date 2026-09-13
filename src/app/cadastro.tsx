@@ -20,12 +20,16 @@ import GoogleButton from '../components/GoogleButton';
 
 
 import { useState } from "react";
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../services/firebase';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 export interface TelaCadastroProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
+
+GoogleSignin.configure({
+  webClientId: '543038942284-pqilv6jii90jle3h2s56d22sccon9qc8.apps.googleusercontent.com'});
 
 export function TelaCadastro(props: TelaCadastroProps) {
   const[email, setEmail] = useState("");
@@ -67,9 +71,32 @@ export function TelaCadastro(props: TelaCadastroProps) {
       setErro("Email já cadastrado!");
     }
   }
-  function continuarComGoogle(){
-    return;
+
+  async function continuarComGoogle(){
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+      
+      if (response.type != 'success') {
+        return;
+      }
+
+      const { idToken } = await GoogleSignin.getTokens();
+
+      if (!idToken) {
+        setErro("Não foi possível obter a credencial do Google!");
+        return;
+      }
+
+      const credential = await GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+
+      router.replace('/telainicial');
+    }catch(error: any){
+      setErro('Não foi possível entrar com o Google');
+    }
   }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
