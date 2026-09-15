@@ -1,28 +1,28 @@
 import {
-  ScrollView,
-  View,
-  Text,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type {
-  ViewStyle,
   StyleProp,
+  ViewStyle,
 } from 'react-native';
 
-import Input from '../components/Input';
 import Button from '../components/Button';
 import GoogleButton from '../components/GoogleButton';
+import Input from '../components/Input';
 
 
-import { useState } from "react";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from '../services/firebase';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { useState } from "react";
+import { auth } from '../services/firebase';
 export interface TelaCadastroProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -37,13 +37,16 @@ export function TelaCadastro(props: TelaCadastroProps) {
   const[confirmarSenha, setConfirmarSenha] = useState("");
 
   const[erro, setErro] = useState("");
+  const[carregando, setCarregando] = useState(false);
 
   async function criarConta() {
-    if (!email || !senha || !confirmarSenha){
+    const emailNormalizado = email.trim();
+
+    if (!emailNormalizado || !senha || !confirmarSenha){
       setErro("Há campos não preenchidos!");
       return;
     }
-    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado);
     if (!emailValido) {
       setErro("Informe um email válido!");
       return;
@@ -63,12 +66,17 @@ export function TelaCadastro(props: TelaCadastroProps) {
       return;
     }
 
+    setErro("");
+    setCarregando(true);
+
     try {
-      const user = await createUserWithEmailAndPassword(auth, email, senha);
+      await createUserWithEmailAndPassword(auth, emailNormalizado, senha);
       router.replace('/telainicial');
 
     } catch(error) {
       setErro("Email já cadastrado!");
+    } finally {
+      setCarregando(false);
     }
   }
 
@@ -181,6 +189,7 @@ export function TelaCadastro(props: TelaCadastroProps) {
             <Button
               title="Criar conta"
               onPress={() => criarConta()}
+              disabled={carregando}
             />
             {erro != "" &&(
                 <Text style={styles.errorText}>

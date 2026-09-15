@@ -1,22 +1,26 @@
 import {
-  ScrollView,
-  View,
-  Text,
   Pressable,
+  ScrollView,
   StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type {
-  ViewStyle,
   StyleProp,
+  ViewStyle,
 } from 'react-native';
 
 import Button from '../components/Button';
-import Input from '../components/Input';
 import GoogleButton from '../components/GoogleButton';
+import Input from '../components/Input';
+
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useState } from 'react';
+import { auth } from '../services/firebase';
 
 export interface TelaLoginProps {
   /** Used to override the default root style. */
@@ -27,6 +31,37 @@ export interface TelaLoginProps {
 }
 
 export function TelaLogin(props: TelaLoginProps) {
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [erro, setErro] = useState('');
+  const [carregando, setCarregando] = useState(false);
+
+  async function entrar() {
+    const emailNormalizado = email.trim();
+
+    if (!emailNormalizado || !senha) {
+      setErro('Há campos não preenchidos!');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado)) {
+      setErro('Informe um email válido!');
+      return;
+    }
+
+    setErro('');
+    setCarregando(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, emailNormalizado, senha);
+      router.replace('/telainicial');
+    } catch (error) {
+      setErro('Email ou senha inválidos!');
+    } finally {
+      setCarregando(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
@@ -78,6 +113,8 @@ export function TelaLogin(props: TelaLoginProps) {
                   placeholder="Digite seu email"
                   keyboardType="email-address"
                   autoCapitalize="none"
+                  value={email}
+                  onChangeText={(texto) => { setEmail(texto); setErro(''); }}
                 />
               </View>
   
@@ -93,6 +130,8 @@ export function TelaLogin(props: TelaLoginProps) {
                   placeholder="Digite sua senha"
                   secureTextEntry
                   autoCapitalize = "none"
+                  value={senha}
+                  onChangeText={(texto) => { setSenha(texto); setErro(''); }}
                 />
               </View>
 
@@ -109,7 +148,14 @@ export function TelaLogin(props: TelaLoginProps) {
 
               <Button
                 title="Entrar"
+                onPress={entrar}
+                disabled={carregando}
               />
+              {erro !== '' && (
+                <Text style={styles.errorText}>
+                  {erro}
+                </Text>
+              )}
             </View>
 
             <View style={styles.googleContainer}>
@@ -252,6 +298,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
     textDecorationLine: 'underline',
+  },
+
+  errorText: {
+    color: '#9e4141',
+    fontSize: 18,
   },
 
 });
