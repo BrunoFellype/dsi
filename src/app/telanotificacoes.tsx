@@ -1,237 +1,237 @@
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
   Text,
-  Image,
+  ScrollView,
+  Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import BottomNav from '../components/BottomNav';
+import TopHeader from '../components/TopHeader';
 
-import type {
-  ViewStyle,
-  StyleProp,
-} from 'react-native';
-
-export interface TelaNotificacoesProps {
-  style?: StyleProp<ViewStyle>;
-  testID?: string;
+interface NotificacaoItem {
+  id: string;
+  canal: 'Discord' | 'Google Classroom' | 'Whatsapp' | 'SIGAA';
+  titulo: string;
+  mensagem: string;
+  horario: string;
+  lida: boolean;
+  prioridade: 'alta' | 'media' | 'normal';
 }
 
-export function TelaNotificacoes(props: TelaNotificacoesProps) {
+export default function TelaNotificacoes() {
+  const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([
+    {
+      id: '1',
+      canal: 'Google Classroom',
+      prioridade: 'alta',
+      titulo: 'Entrega de Engenharia de Software (DSI)',
+      mensagem: 'Prof. Bruno postou nova atividade: Envio do código e dossiê do ASTRA até hoje às 23:59.',
+      horario: 'Há 15 min',
+      lida: false,
+    },
+    {
+      id: '2',
+      canal: 'SIGAA',
+      prioridade: 'alta',
+      titulo: 'Alteração na Sala de Banco de Dados',
+      mensagem: 'A avaliação prática de Álgebra Relacional de quinta-feira será no Laboratório 2.',
+      horario: 'Hoje 08:20',
+      lida: false,
+    },
+    {
+      id: '3',
+      canal: 'Whatsapp',
+      prioridade: 'media',
+      titulo: 'Grupo da Turma • Algoritmos',
+      mensagem: 'Monitor Victor compartilhou gabarito dos exercícios de grafos e árvore AVL.',
+      horario: 'Ontem 17:40',
+      lida: true,
+    },
+    {
+      id: '4',
+      canal: 'Discord',
+      prioridade: 'normal',
+      titulo: 'Canal de Estudos • Sistemas Operacionais',
+      mensagem: 'Dúvidas abertas para a Lista 2 de escalonamento de CPU e semáforos.',
+      horario: 'Há 2 dias',
+      lida: true,
+    },
+    {
+      id: '5',
+      canal: 'Whatsapp',
+      prioridade: 'normal',
+      titulo: 'Comissão de Curso BSI',
+      mensagem: 'Lembrete: Prazo final para cancelamento de disciplinas encerra na sexta-feira.',
+      horario: 'Há 3 dias',
+      lida: true,
+    },
+  ]);
+
+  const marcarTodasLidas = () => {
+    setNotificacoes((prev) => prev.map((n) => ({ ...n, lida: true })));
+  };
+
+  const getCanalBadgeColor = (canal: string) => {
+    switch (canal) {
+      case 'Google Classroom':
+        return { bg: '#E8F5E9', text: '#2E7D32' };
+      case 'SIGAA':
+        return { bg: '#E0F2FE', text: '#0369A1' };
+      case 'Whatsapp':
+        return { bg: '#DCFCE7', text: '#15803D' };
+      case 'Discord':
+        return { bg: '#EDE9FE', text: '#6D28D9' };
+      default:
+        return { bg: '#F1F5F9', text: '#475569' };
+    }
+  };
+
   return (
-    <View
-      testID={props.testID ?? '101:25'}
-      style={[styles.root, props.style]}
-    >
-      {/* Header */}
-      <View
-        testID="88:1035"
-        style={styles.header}
-      />
-
-      {/* Parte superior */}
-      <View
-        testID="98:13"
-        style={styles.telaSup}
-      >
-        <Image
-          source={require('../../assets/images/straremovebgpreview2.png')}
-          style={styles.astraImage}
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.root}>
+        {/* Top Header Padronizado */}
+        <TopHeader
+          title="Notificações"
+          subtitle="Avisos & Comunicados Centralizados"
         />
 
-        <Image
-          source={require('../../assets/images/profile.png')}
-          style={styles.profileImage}
-        />
-
-        <Text
-          testID="88:1041"
-          style={styles.notificacoes}
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
         >
-          Notificações
-        </Text>
+          {/* Cabeçalho da Lista (Figura 6) */}
+          <View style={styles.headerRow}>
+            <Text style={styles.secaoTitulo}>
+              Comunicados Recebidos ({notificacoes.filter((n) => !n.lida).length} não lidos)
+            </Text>
+            <Pressable onPress={marcarTodasLidas}>
+              <Text style={styles.marcarLidas}>Marcar lidos</Text>
+            </Pressable>
+          </View>
+
+          {/* Cards Modulares de Notificação (Figura 6) */}
+          <View style={styles.notifList}>
+            {notificacoes.map((item) => {
+              const canalCor = getCanalBadgeColor(item.canal);
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.notifCard,
+                    !item.lida && styles.notifNaoLida,
+                  ]}
+                >
+                  {/* Badge da Fonte de Origem (Figura 6) */}
+                  <View style={styles.cardTopRow}>
+                    <View style={[styles.canalBadge, { backgroundColor: canalCor.bg }]}>
+                      <Text style={[styles.canalBadgeText, { color: canalCor.text }]}>
+                        ● {item.canal}
+                      </Text>
+                    </View>
+                    <Text style={styles.horarioTexto}>{item.horario}</Text>
+                  </View>
+
+                  <Text style={styles.notifTitulo}>{item.titulo}</Text>
+                  <Text style={styles.notifMensagem}>{item.mensagem}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </ScrollView>
+
+        <BottomNav currentRoute="/telanotificacoes" />
       </View>
-
-      {/*Seção de cards */}
-      <View
-        testID="98:14"
-        style={styles.frame4}
-      >
-        <View
-          testID="99:15"
-          style={styles.frame5}
-        />
-
-        <View
-          testID="99:16"
-          style={styles.frame6}
-        />
-
-        <View
-          testID="100:22"
-          style={styles.frame7}
-        />
-        
-        <View
-          testID="100:22"
-          style={styles.frame8}
-        />
-
-        <View
-          testID="100:22"
-          style={styles.frame9}
-        />
-      </View>
-
-      {/* Espaço flexível */}
-      <View
-        testID="101:29"
-        style={styles.spacer}
-      />
-
-      {/* Barra inferior */}
-      <View
-        testID="100:24"
-        style={styles.frame10}
-      >
-        <Image
-          source={require('../../assets/images/homepage.png')}
-          style={styles.navigationIcon}
-        />
-
-        <Image
-          source={require('../../assets/images/calendar.png')}
-          style={styles.navigationIcon}
-        />
-
-        <Image
-          source={require('../../assets/images/clock.png')}
-          style={styles.navigationIcon}
-        />
-
-        <Image
-          source={require('../../assets/images/doorbell.png')}
-          style={[styles.navigationIcon, { tintColor: '#6EA1C5'}]}
-        />
-
-        <Image
-          source={require('../../assets/images/journal.png')}
-          style={styles.navigationIcon}
-        />
-      </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#9AD9EB',
+  },
   root: {
-    width: 402,
-    height: 874,
-    flexDirection: 'column',
+    flex: 1,
+    backgroundColor: '#F8FCFD',
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
     alignItems: 'center',
-    backgroundColor: 'rgba(253, 255, 255, 1)',
+    paddingTop: 14,
+    paddingBottom: 24,
   },
 
-  header: {
-    width: 402,
-    height: 70,
-    backgroundColor: 'rgba(154, 217, 235, 1)',
-  },
-
-  telaSup: {
-    position: 'relative',
+  headerRow: {
+    width: '90%',
+    maxWidth: 420,
     flexDirection: 'row',
-    width: 400,
-    height: 115,
-    paddingTop: 0,
-    paddingLeft: 10,
-    paddingRight: 20,
-    paddingBottom: 30,
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 12,
+  },
+  secaoTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1D2A44',
+  },
+  marcarLidas: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3873A0',
   },
 
-  astraImage: {
-    width: 133,
-    height: 133,
-    marginTop: 20,
-  },
-
-  profileImage: {
-    width: 40,
-    height: 40,
-    marginLeft: 'auto',
-  },
-
-  notificacoes: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    color: 'rgba(0, 0, 0, 1)',
-    fontSize: 20,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  frame4: {
-    width: 355,
-    paddingTop: 10,
-    paddingLeft: 10,
-    paddingBottom: 10,
-    paddingRight: 10,
-    flexDirection: 'column',
+  notifList: {
+    width: '90%',
+    maxWidth: 420,
     gap: 10,
   },
-
-  frame5: {
-    width: 335,
-    height: 100,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
+  notifCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+    elevation: 1,
   },
-
-  frame6: {
-    width: 335,
-    height: 100,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
+  notifNaoLida: {
+    backgroundColor: '#F7FCFE',
+    borderColor: '#9AD9EB',
+    borderWidth: 1.5,
   },
-
-  frame7: {
-    width: 335,
-    height: 100,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
-  },
-
-  frame8: {
-    width: 335,
-    height: 100,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
-  },
-
-  frame9: {
-    width: 335,
-    height: 100,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
-  },
-
-  spacer: {
-    flex: 1,
-    width: 100,
-  },
-
-  frame10: {
-    width: '100%',
+  cardTopRow: {
     flexDirection: 'row',
-    paddingTop: 20,
-    paddingLeft: 13,
-    paddingBottom: 20,
-    paddingRight: 13,
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(244, 244, 252, 1)',
+    alignItems: 'center',
   },
-
-  navigationIcon: {
-    width: 40,
-    height: 40,
+  canalBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  canalBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  horarioTexto: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  notifTitulo: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#1D2A44',
+  },
+  notifMensagem: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 17,
   },
 });
-
-export default TelaNotificacoes;
