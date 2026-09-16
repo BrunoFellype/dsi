@@ -1,553 +1,314 @@
-import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
-  View,
-  Text,
-  Pressable,
   StyleSheet,
-  Image,
-  Alert,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 
-import Input from '../components/Input';
-import Button from '../components/Button';
+export default function OnboardingScreen() {
+  const router = useRouter();
 
-const TURNOS = ['Manhã', 'Tarde', 'Noite', 'Integral'] as const;
-type Turno = typeof TURNOS[number];
+  // Estados dos campos de perfil acadêmico
+  const [curso, setCurso] = useState('');
+  const [periodo, setPeriodo] = useState('');
+  const [metaHoras, setMetaHoras] = useState('');
+  const [metodoAnotacao, setMetodoAnotacao] = useState<'Digital' | 'Papel' | 'Híbrido'>('Digital');
+  
+  // Canais de integração ativos
+  const [canais, setCanais] = useState<string[]>(['SIGAA']);
 
-const PERIODOS = ['1º', '2º', '3º', '4º', '5º', '6º', '7º', '8º+'];
+  // Estados de feedback visual (Erros e Sucesso)
+  const [erro, setErro] = useState<string | null>(null);
+  const [sucesso, setSucesso] = useState(false);
+  const [carregando, setCarregando] = useState(false);
 
-export default function TelaOnboarding() {
-  // Estados do Perfil Acadêmico
-  const [curso, setCurso] = useState('Sistemas de Informação');
-  const [periodo, setPeriodo] = useState('3º');
-  const [turno, setTurno] = useState<Turno>('Manhã');
+  const toggleCanal = (nomeCanal: string) => {
+    if (canais.includes(nomeCanal)) {
+      setCanais(canais.filter((c) => c !== nomeCanal));
+    } else {
+      setCanais([...canais, nomeCanal]);
+    }
+  };
 
-  // Estados de Metas e Disciplinas
-  const [metaMedia, setMetaMedia] = useState(8.5);
-  const [novaDisciplina, setNovaDisciplina] = useState('');
-  const [disciplinas, setDisciplinas] = useState<string[]>([
-    'Algoritmos',
-    'Banco de Dados',
-    'Engenharia de Software',
-  ]);
+  const handleSalvarPerfil = () => {
+    setErro(null);
 
-  function adicionarDisciplina() {
-    const nomeLimpo = novaDisciplina.trim();
-    if (!nomeLimpo) return;
-    if (disciplinas.includes(nomeLimpo)) {
-      Alert.alert('Aviso', 'Esta disciplina já foi adicionada.');
+    // Validações defensivas de preenchimento
+    if (!curso.trim()) {
+      setErro('Por favor, informe seu curso de graduação.');
       return;
     }
-    setDisciplinas([...disciplinas, nomeLimpo]);
-    setNovaDisciplina('');
-  }
 
-  function removerDisciplina(index: number) {
-    setDisciplinas(disciplinas.filter((_, i) => i !== index));
-  }
+    if (!periodo.trim()) {
+      setErro('Informe o período letivo atual (ex: 3º Período).');
+      return;
+    }
 
-  function alterarMeta(delta: number) {
-    setMetaMedia((prev) => {
-      const novo = Math.round((prev + delta) * 10) / 10;
-      return Math.min(10, Math.max(5.0, novo));
-    });
-  }
+    if (!metaHoras.trim() || isNaN(Number(metaHoras)) || Number(metaHoras) <= 0) {
+      setErro('Informe uma meta diária válida de estudo em horas.');
+      return;
+    }
 
-  function concluir() {
-    // Redireciona para a visão geral após configurar o perfil
-    router.replace('/telainicial');
-  }
+    if (canais.length === 0) {
+      setErro('Selecione pelo menos um canal de integração para sincronização.');
+      return;
+    }
 
-  function pular() {
-    router.replace('/telainicial');
-  }
+    setCarregando(true);
+
+    // Simulação de persistência das configurações do estudante
+    setTimeout(() => {
+      setCarregando(false);
+      setSucesso(true);
+
+      // Transição automática para a tela inicial
+      setTimeout(() => {
+        router.replace('/telainicial');
+      }, 1200);
+    }, 800);
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View style={styles.root}>
-          {/* Header estilizado ASTRA */}
-          <View style={styles.header}>
-            <Image
-              source={require('../../assets/images/straremovebgpreview2.png')}
-              style={styles.astraLogo}
-              resizeMode="contain"
-            />
+    <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <View style={styles.card}>
+        <Text style={styles.title}>Configuração Inicial</Text>
+        <Text style={styles.subtitle}>
+          Personalize sua rotina acadêmica no ASTRA para calibrar suas notificações e metas.
+        </Text>
+
+        {/* Bloco de Mensagem de Erro */}
+        {erro && (
+          <View style={styles.erroBox}>
+            <Text style={styles.erroTexto}>{erro}</Text>
           </View>
+        )}
 
-          {/* Barra de Progresso do Onboarding */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressTextRow}>
-              <Text style={styles.stepTitle}>Passo 1 de 2 • Perfil Acadêmico</Text>
-              <Text style={styles.percentageText}>50%</Text>
-            </View>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: '50%' }]} />
-            </View>
+        {/* Bloco de Confirmação de Sucesso */}
+        {sucesso && (
+          <View style={styles.sucessoBox}>
+            <Text style={styles.sucessoTexto}>Perfil configurado com sucesso! Redirecionando...</Text>
           </View>
+        )}
 
-          {/* Título Principal */}
-          <View style={styles.titleSection}>
-            <Text style={styles.mainTitle}>Configure sua Rotina Acadêmica</Text>
-            <Text style={styles.subtitle}>
-              Personalize seu perfil para que a IA do ASTRA possa calibrar suas metas e predições.
-            </Text>
-          </View>
+        {/* Campo: Curso */}
+        <Text style={styles.label}>Curso de Graduação *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: Bacharelado em Sistemas de Informação"
+          placeholderTextColor="#8F9BB3"
+          value={curso}
+          onChangeText={setCurso}
+        />
 
-          {/* CARD 1: Dados Acadêmicos */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Dados Acadêmicos</Text>
+        {/* Campo: Período */}
+        <Text style={styles.label}>Período Atual *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: 3º Período"
+          placeholderTextColor="#8F9BB3"
+          value={periodo}
+          onChangeText={setPeriodo}
+        />
 
-            {/* Curso */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Curso de Graduação</Text>
-              <Input
-                placeholder="Ex: Sistemas de Informação"
-                value={curso}
-                onChangeText={setCurso}
-              />
-            </View>
+        {/* Campo: Meta diária de horas */}
+        <Text style={styles.label}>Meta Diária de Estudos (horas) *</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ex: 4"
+          placeholderTextColor="#8F9BB3"
+          keyboardType="numeric"
+          value={metaHoras}
+          onChangeText={setMetaHoras}
+        />
 
-            {/* Período */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Período Atual</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.periodosRow}
+        {/* Seleção de Método de Anotação */}
+        <Text style={styles.label}>Método Principal de Anotação</Text>
+        <View style={styles.opcoesContainer}>
+          {(['Digital', 'Papel', 'Híbrido'] as const).map((opcao) => (
+            <TouchableOpacity
+              key={opcao}
+              style={[
+                styles.chip,
+                metodoAnotacao === opcao && styles.chipSelecionado,
+              ]}
+              onPress={() => setMetodoAnotacao(opcao)}
+            >
+              <Text
+                style={[
+                  styles.chipTexto,
+                  metodoAnotacao === opcao && styles.chipTextoSelecionado,
+                ]}
               >
-                {PERIODOS.map((p) => {
-                  const isSelected = periodo === p;
-                  return (
-                    <Pressable
-                      key={p}
-                      onPress={() => setPeriodo(p)}
-                      style={[
-                        styles.periodoChip,
-                        isSelected && styles.periodoChipSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.periodoText,
-                          isSelected && styles.periodoTextSelected,
-                        ]}
-                      >
-                        {p}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {/* Turno */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Turno das Aulas</Text>
-              <View style={styles.turnosContainer}>
-                {TURNOS.map((t) => {
-                  const isSelected = turno === t;
-                  return (
-                    <Pressable
-                      key={t}
-                      onPress={() => setTurno(t)}
-                      style={[
-                        styles.turnoButton,
-                        isSelected && styles.turnoButtonSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.turnoText,
-                          isSelected && styles.turnoTextSelected,
-                        ]}
-                      >
-                        {t}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-          </View>
-
-          {/* CARD 2: Metas & Disciplinas */}
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Metas & Disciplinas</Text>
-
-            {/* Meta de Média */}
-            <View style={styles.field}>
-              <View style={styles.metaHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Meta de Média / GPA Alvo</Text>
-                  <Text style={styles.metaSubtext}>
-                    Sua meta pretendida para este semestre
-                  </Text>
-                </View>
-                <View style={styles.metaBadge}>
-                  <Text style={styles.metaBadgeText}>{metaMedia.toFixed(1)}</Text>
-                </View>
-              </View>
-
-              {/* Controles da Meta */}
-              <View style={styles.metaAdjustRow}>
-                <Pressable
-                  onPress={() => alterarMeta(-0.5)}
-                  style={styles.stepperButton}
-                >
-                  <Text style={styles.stepperText}>-</Text>
-                </Pressable>
-
-                <View style={styles.metaBarBackground}>
-                  <View
-                    style={[
-                      styles.metaBarProgress,
-                      { width: `${((metaMedia - 5) / 5) * 100}%` },
-                    ]}
-                  />
-                </View>
-
-                <Pressable
-                  onPress={() => alterarMeta(0.5)}
-                  style={styles.stepperButton}
-                >
-                  <Text style={styles.stepperText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Disciplinas Matriculadas */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Disciplinas Matriculadas</Text>
-              <View style={styles.addDisciplinaRow}>
-                <View style={{ flex: 1 }}>
-                  <Input
-                    placeholder="Adicionar disciplina..."
-                    value={novaDisciplina}
-                    onChangeText={setNovaDisciplina}
-                    onSubmitEditing={adicionarDisciplina}
-                  />
-                </View>
-                <Pressable
-                  onPress={adicionarDisciplina}
-                  style={styles.addButton}
-                >
-                  <Text style={styles.addButtonText}>+</Text>
-                </Pressable>
-              </View>
-
-              {/* Lista de tags de disciplinas */}
-              <View style={styles.tagsContainer}>
-                {disciplinas.map((disc, idx) => (
-                  <Pressable
-                    key={idx}
-                    onPress={() => removerDisciplina(idx)}
-                    style={styles.tag}
-                  >
-                    <Text style={styles.tagText}>{disc}</Text>
-                    <Text style={styles.tagClose}>✕</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {/* Botão Concluir */}
-          <View style={styles.actionContainer}>
-            <Button
-              title="Concluir e Ir para o Painel →"
-              onPress={concluir}
-            />
-
-            <Pressable onPress={pular} style={styles.skipButton}>
-              <Text style={styles.skipText}>Pular configuração inicial</Text>
-            </Pressable>
-          </View>
+                {opcao}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        {/* Seleção de Canais de Integração */}
+        <Text style={styles.label}>Canais Acadêmicos Utilizados *</Text>
+        <View style={styles.opcoesContainer}>
+          {['SIGAA', 'Google Classroom', 'WhatsApp', 'Discord'].map((canal) => {
+            const selecionado = canais.includes(canal);
+            return (
+              <TouchableOpacity
+                key={canal}
+                style={[styles.chip, selecionado && styles.chipSelecionado]}
+                onPress={() => toggleCanal(canal)}
+              >
+                <Text
+                  style={[
+                    styles.chipTexto,
+                    selecionado && styles.chipTextoSelecionado,
+                  ]}
+                >
+                  {canal}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Botão de Submissão */}
+        <TouchableOpacity
+          style={[styles.botao, (carregando || sucesso) && styles.botaoDesabilitado]}
+          onPress={handleSalvarPerfil}
+          disabled={carregando || sucesso}
+        >
+          {carregando ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.botaoTexto}>Concluir e Ir para o Painel</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FDFFFF',
-  },
-  scrollContent: {
+  scrollContainer: {
     flexGrow: 1,
-    alignItems: 'center',
-    paddingBottom: 40,
-  },
-  root: {
-    width: '100%',
-    alignItems: 'center',
-    backgroundColor: '#FDFFFF',
-  },
-  header: {
-    width: '100%',
-    height: 75,
-    backgroundColor: '#9AD9EB',
-    alignItems: 'center',
+    backgroundColor: '#F4FAFC',
     justifyContent: 'center',
-    paddingTop: 10,
-  },
-  astraLogo: {
-    width: 140,
-    height: 60,
-  },
-  progressContainer: {
-    width: '88%',
-    maxWidth: 420,
-    marginTop: 16,
-    gap: 8,
-  },
-  progressTextRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
   },
-  stepTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  percentageText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1D2A44',
-  },
-  progressBarTrack: {
+  card: {
     width: '100%',
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#E2E8F0',
-    overflow: 'hidden',
+    maxWidth: 480,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#1D2A44',
-    borderRadius: 3,
-  },
-  titleSection: {
-    width: '88%',
-    maxWidth: 420,
-    marginVertical: 18,
-    alignItems: 'center',
-  },
-  mainTitle: {
+  title: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#0F172A',
-    textAlign: 'center',
+    color: '#003366',
     marginBottom: 6,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#41689E',
     textAlign: 'center',
+    marginBottom: 20,
     lineHeight: 20,
   },
-  card: {
-    width: '88%',
-    maxWidth: 420,
-    backgroundColor: '#E5F4F8',
-    borderRadius: 14,
-    padding: 18,
+  erroBox: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#E53935',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
     marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#D0E9F2',
-    gap: 16,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#0F172A',
-  },
-  field: {
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  periodosRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  periodoChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-  },
-  periodoChipSelected: {
-    backgroundColor: '#1D2A44',
-    borderColor: '#1D2A44',
-  },
-  periodoText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#334155',
-  },
-  periodoTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  turnosContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  turnoButton: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  turnoButtonSelected: {
-    backgroundColor: '#1D2A44',
-    borderColor: '#1D2A44',
-  },
-  turnoText: {
+  erroTexto: {
+    color: '#C62828',
     fontSize: 13,
     fontWeight: '500',
-    color: '#334155',
   },
-  turnoTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  metaHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  metaSubtext: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 2,
-  },
-  metaBadge: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
+  sucessoBox: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#43A047',
+    borderWidth: 1,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#9AD9EB',
+    padding: 10,
+    marginBottom: 16,
   },
-  metaBadgeText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1D2A44',
+  sucessoTexto: {
+    color: '#2E7D32',
+    fontSize: 13,
+    fontWeight: '500',
   },
-  metaAdjustRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 6,
-  },
-  stepperButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#9AD9EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepperText: {
-    fontSize: 20,
+  label: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#1D2A44',
+    color: '#2A4B7C',
+    marginBottom: 6,
+    marginTop: 10,
   },
-  metaBarBackground: {
-    flex: 1,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#D1E6ED',
-    overflow: 'hidden',
+  input: {
+    height: 46,
+    borderWidth: 1,
+    borderColor: '#C9F7FF',
+    backgroundColor: '#FDFAFC',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#201D2A',
   },
-  metaBarProgress: {
-    height: '100%',
-    backgroundColor: '#1D2A44',
-    borderRadius: 4,
-  },
-  addDisciplinaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  addButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 10,
-    backgroundColor: '#9AD9EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonText: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  tagsContainer: {
+  opcoesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 6,
+    marginTop: 4,
+    marginBottom: 8,
   },
-  tag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  tagText: {
-    fontSize: 13,
-    color: '#1E293B',
-    fontWeight: '500',
-  },
-  tagClose: {
-    fontSize: 12,
-    color: '#64748B',
-    fontWeight: '700',
-  },
-  actionContainer: {
-    width: '88%',
-    maxWidth: 420,
-    gap: 14,
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  skipButton: {
-    paddingVertical: 6,
+  chip: {
     paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#9AD9EB',
+    backgroundColor: '#FFFFFF',
   },
-  skipText: {
-    fontSize: 14,
-    color: '#64748B',
+  chipSelecionado: {
+    backgroundColor: '#003366',
+    borderColor: '#003366',
+  },
+  chipTexto: {
+    fontSize: 12,
+    color: '#2A4B7C',
     fontWeight: '500',
-    textDecorationLine: 'underline',
+  },
+  chipTextoSelecionado: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  botao: {
+    backgroundColor: '#003366',
+    height: 48,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  botaoDesabilitado: {
+    backgroundColor: '#6EA1C5',
+  },
+  botaoTexto: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
