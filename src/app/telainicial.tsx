@@ -1,15 +1,15 @@
-import React from 'react';
+import { router } from 'expo-router';
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  Pressable,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
 import BottomNav from '../components/BottomNav';
 import TopHeader from '../components/TopHeader';
+import { academicActivities } from '../constants/academicActivities';
 
 export default function TelaInicial() {
   return (
@@ -86,44 +86,20 @@ export default function TelaInicial() {
             </View>
 
             <View style={styles.atividadesList}>
-              <View style={[styles.atividadeCard, { borderLeftColor: '#EF4444' }]}>
-                <View style={styles.atividadeContent}>
-                  <Text style={styles.atividadeTitulo}>Entrega do Dossiê e Código DSI</Text>
-                  <Text style={styles.atividadeSub}>Engenharia de Software • Apresentação à Banca</Text>
-                  <View style={styles.fonteTagRow}>
-                    <Text style={styles.fonteTag}>🏫 Google Classroom</Text>
+              {academicActivities.map((activity) => (
+                <View key={activity.id} style={[styles.atividadeCard, { borderLeftColor: activity.borderColor }]}>
+                  <View style={styles.atividadeContent}>
+                    <Text style={styles.atividadeTitulo}>{activity.title}</Text>
+                    <Text style={styles.atividadeSub}>{activity.details}</Text>
+                    <View style={styles.fonteTagRow}>
+                      <Text style={styles.fonteTag}>{activity.source}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.prazoBadge, { backgroundColor: activity.deadlineBackgroundColor }]}>
+                    <Text style={[styles.prazoText, { color: activity.deadlineTextColor }]}>{activity.deadline}</Text>
                   </View>
                 </View>
-                <View style={[styles.prazoBadge, { backgroundColor: '#FEE2E2' }]}>
-                  <Text style={[styles.prazoText, { color: '#B91C1C' }]}>Hoje, 23:59</Text>
-                </View>
-              </View>
-
-              <View style={[styles.atividadeCard, { borderLeftColor: '#F59E0B' }]}>
-                <View style={styles.atividadeContent}>
-                  <Text style={styles.atividadeTitulo}>Simulado de Banco de Dados (P1)</Text>
-                  <Text style={styles.atividadeSub}>Álgebra Relacional e SQL • Prof. Ricardo</Text>
-                  <View style={styles.fonteTagRow}>
-                    <Text style={styles.fonteTag}>🏛️ SIGAA UFRPE</Text>
-                  </View>
-                </View>
-                <View style={[styles.prazoBadge, { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.prazoText, { color: '#B45309' }]}>Quarta, 14h</Text>
-                </View>
-              </View>
-
-              <View style={[styles.atividadeCard, { borderLeftColor: '#10B981' }]}>
-                <View style={styles.atividadeContent}>
-                  <Text style={styles.atividadeTitulo}>Lista 3 de Algoritmos (Grafos)</Text>
-                  <Text style={styles.atividadeSub}>Estruturas de Dados • Implementação C++</Text>
-                  <View style={styles.fonteTagRow}>
-                    <Text style={styles.fonteTag}>💬 WhatsApp Turma</Text>
-                  </View>
-                </View>
-                <View style={[styles.prazoBadge, { backgroundColor: '#DCFCE7' }]}>
-                  <Text style={[styles.prazoText, { color: '#15803D' }]}>Sexta, 18h</Text>
-                </View>
-              </View>
+              ))}
             </View>
           </View>
 
