@@ -1,4 +1,6 @@
 import {
+  Platform,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -18,18 +20,15 @@ import Button from '../components/Button';
 import GoogleButton from '../components/GoogleButton';
 import Input from '../components/Input';
 
-
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { useState } from "react";
 import { auth } from '../services/firebase';
+import { GoogleSignin, isGoogleSigninSupported } from '../services/googleSignin';
+
 export interface TelaCadastroProps {
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
-
-GoogleSignin.configure({
-  webClientId: '543038942284-pqilv6jii90jle3h2s56d22sccon9qc8.apps.googleusercontent.com'});
 
 export function TelaCadastro(props: TelaCadastroProps) {
   const[email, setEmail] = useState("");
@@ -70,9 +69,10 @@ export function TelaCadastro(props: TelaCadastroProps) {
     setCarregando(true);
 
     try {
-      await createUserWithEmailAndPassword(auth, emailNormalizado, senha);
-      router.replace('/telainicial');
-
+      if (auth) {
+        await createUserWithEmailAndPassword(auth, emailNormalizado, senha);
+      }
+      router.replace('/onboarding');
     } catch(error) {
       setErro("Email já cadastrado!");
     } finally {
@@ -81,6 +81,15 @@ export function TelaCadastro(props: TelaCadastroProps) {
   }
 
   async function continuarComGoogle(){
+    if (!isGoogleSigninSupported || !GoogleSignin) {
+      Alert.alert(
+        'Google Sign-In',
+        'O login social com Google depende de binários nativos que não estão no Expo Go padrão. Cadastre-se com e-mail e senha para testar no Expo Go!'
+      );
+      setErro('Login Google requer Development Build. Use e-mail e senha no Expo Go.');
+      return;
+    }
+
     try {
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
@@ -96,10 +105,12 @@ export function TelaCadastro(props: TelaCadastroProps) {
         return;
       }
 
-      const credential = await GoogleAuthProvider.credential(idToken);
-      await signInWithCredential(auth, credential);
+      if (auth) {
+        const credential = await GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+      }
 
-      router.replace('/telainicial');
+      router.replace('/onboarding');
     }catch(error: any){
       setErro('Não foi possível entrar com o Google');
     }

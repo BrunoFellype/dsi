@@ -23,6 +23,7 @@ export default function GoogleButton({
       <Image
         source={require("../../assets/images/image3.png")}
         style={styles.googleLogo}
+        resizeMode="contain"
       />
 
       <Text style={styles.text}>
@@ -50,7 +51,6 @@ const styles = StyleSheet.create({
   googleLogo: {
     width: 20,
     height: 20,
-    resizeMode: "contain",
   },
 
   text: {

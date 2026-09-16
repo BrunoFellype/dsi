@@ -1,5 +1,7 @@
-import { Redirect } from 'expo-router';
+import React from 'react';
+import TelaLogin from './login';
 
 export default function Index() {
-  return <Redirect href="/login" />;
+  return <TelaLogin />;
 }
+
