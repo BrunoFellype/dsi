@@ -10,8 +10,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav from '../components/BottomNav';
 import TopHeader from '../components/TopHeader';
 import { academicActivities } from '../constants/academicActivities';
+import { useEffect, useState } from 'react';
+import { onAuthStateChanged, type User } from 'firebase/auth';
+import { auth } from '../services/firebase';
 
 export default function TelaInicial() {
+  const [usuario, setUsuario] = useState<User | null>(null);
+  useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, (usuarioAtual) => {
+    setUsuario(usuarioAtual);
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const nome = usuario?.displayName?.trim() || 'Estudante';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
@@ -30,7 +44,7 @@ export default function TelaInicial() {
           {/* SAUDAÇÃO INICIAL */}
           <View style={styles.greetingSection}>
             <View>
-              <Text style={styles.greetingText}>Olá, Riquelme 👋</Text>
+              <Text style={styles.greetingText}>Olá, {nome} 👋</Text>
               <Text style={styles.greetingSub}>Painel consolidado da sua rotina universitária</Text>
             </View>
             <View style={styles.periodoBadge}>

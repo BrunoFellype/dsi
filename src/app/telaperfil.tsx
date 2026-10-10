@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -11,26 +11,177 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { auth } from '../services/firebase';
-import { signOut } from 'firebase/auth';
+import { auth, db } from '../services/firebase';
+import { doc, getDoc, writeBatch } from 'firebase/firestore';
+import { signOut, onAuthStateChanged, updateProfile, verifyBeforeUpdateEmail,type User } from 'firebase/auth';
 import TopHeader from '../components/TopHeader';
 import BottomNav from '../components/BottomNav';
 
 export default function TelaPerfil() {
-  const [nome, setNome] = useState('Riquelme Silva');
-  const [email, setEmail] = useState(auth.currentUser?.email || 'riquelme@gmail.com');
-  const [curso, setCurso] = useState('Sistemas de Informação');
-  const [periodo, setPeriodo] = useState('3º período');
+  const [nome, setNome] = useState('');
+  const [email, setEmail] = useState(auth.currentUser?.email || '');
+  const [curso, setCurso] = useState('');
+  const [periodo, setPeriodo] = useState('');
   const [modoEscuro, setModoEscuro] = useState(false);
   const [editando, setEditando] = useState(false);
 
-  const handleSalvar = () => {
-    if (!nome.trim() || !email.trim()) {
-      Alert.alert('Erro', 'Nome e e-mail não podem ficar em branco.');
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (usuarioAtual) => {
+      const carregarPerfil = async (usuario: User) => {
+        try{
+          setNome(usuario.displayName ?? '');
+          setEmail(usuario.email ?? '');
+
+          const perfilRef = doc(
+            db,
+            'perfisAprendizagem',
+            usuario.uid
+          );
+          const perfilSnap = await getDoc(perfilRef);
+
+          if (perfilSnap.exists()) {
+            const dados = perfilSnap.data();
+
+            setCurso(dados.curso ?? '');
+            setPeriodo(dados.periodo ?? '');
+          } 
+        } catch (erro) {
+          console.error('Erro ao carregar perfil:', erro);
+
+          Alert.alert(
+            'Erro',
+            'Não foi possível carregar os dados do perfil.'
+          );
+        } finally {
+          setCarregando(false);
+        }
+      };
+
+      if (usuarioAtual) {
+        void carregarPerfil(usuarioAtual);
+      } else {
+        setCarregando(false);
+        router.replace('/login');
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleSalvar = async () => {
+    const usuario = auth.currentUser;
+
+    if (!usuario) {
+      Alert.alert(
+        'Sessão expirada',
+        'Faça login novamente para atualizar seu perfil.'
+      );
+      router.replace('/login');
       return;
     }
-    setEditando(false);
-    Alert.alert('Sucesso', 'Dados do perfil atualizados com sucesso!');
+
+    const nomeNormalizado = nome.trim();
+    const emailNormalizado = email.trim().toLowerCase();
+    const cursoNormalizado = curso.trim();
+    const periodoNormalizado = periodo.trim();
+
+    if (
+      !nomeNormalizado ||
+      !emailNormalizado ||
+      !cursoNormalizado ||
+      !periodoNormalizado
+    ) {
+      Alert.alert(
+        'Campos obrigatórios',
+        'Preencha nome, e-mail, curso e período.'
+      );
+      return;
+    }
+    
+    const formatoEmailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado);
+
+    if (!formatoEmailValido) {
+      Alert.alert(
+        'E-mail inválido! Informe um endereço de e-mail válido.'
+      );
+      return;
+    }
+
+    try {
+      if (nomeNormalizado !== (usuario.displayName ?? '')) {
+        await updateProfile(usuario, {
+          displayName: nomeNormalizado,
+        });
+      }
+
+      if (emailNormalizado !== (usuario.email ?? '').toLowerCase()) {
+        await verifyBeforeUpdateEmail(usuario, emailNormalizado);
+      }
+
+      const estudanteRef = doc(
+        db,
+        'estudantes',
+        usuario.uid
+      );
+
+      const perfilRef = doc(
+        db,
+        'perfisAprendizagem',
+        usuario.uid
+      );
+
+      const batch = writeBatch(db);
+
+      batch.update(estudanteRef, {
+        nome: nomeNormalizado,
+        email: emailNormalizado,
+      });
+
+      batch.update(perfilRef, {
+        curso: cursoNormalizado,
+        periodo: periodoNormalizado,
+      });
+
+      await batch.commit();
+
+      setNome(nomeNormalizado);
+      setEmail(emailNormalizado);
+      setCurso(cursoNormalizado);
+      setPeriodo(periodoNormalizado);
+      setEditando(false);
+
+      Alert.alert(
+        'Sucesso! Dados do perfil atualizados com sucesso!'
+      );
+    } catch (erro: any) {
+      console.error('Erro ao atualizar perfil:', erro);
+
+      if (erro.code === 'auth/requires-recent-login') {
+        Alert.alert(
+          'Autenticação necessária! Por segurança, faça login novamente antes de alterar seu e-mail.'
+        );
+        return;
+      }
+
+      if (erro.code === 'auth/email-already-in-use') {
+        Alert.alert(
+          'E-mail já cadastrado! Esse endereço de e-mail já está sendo utilizado por outra conta.'
+        );
+        return;
+      }
+
+      if (erro.code === 'auth/invalid-email') {
+        Alert.alert(
+          'E-mail inválido! O Firebase não aceitou o endereço informado.'
+        );
+        return;
+      }
+
+      Alert.alert(
+        'Erro ao salvar! Não foi possível concluir a atualização do perfil. Verifique sua conexão e tente novamente.',
+      );
+    }
   };
 
   const handleSair = async () => {
@@ -41,6 +192,18 @@ export default function TelaPerfil() {
     }
     router.replace('/login');
   };
+
+  if (carregando) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.root}>
+          <Text style={styles.campoValor}>
+            Carregando perfil...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>

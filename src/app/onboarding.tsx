@@ -1,5 +1,7 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { auth, db } from '../services/firebase';
+import { doc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import {
   ActivityIndicator,
   ScrollView,
@@ -35,7 +37,7 @@ export default function OnboardingScreen() {
     }
   };
 
-  const handleSalvarPerfil = () => {
+  const handleSalvarPerfil = async () => {
     setErro(null);
 
     // Validações defensivas de preenchimento
@@ -59,18 +61,56 @@ export default function OnboardingScreen() {
       return;
     }
 
+    const usuario = auth.currentUser;
+
+    if (!usuario) {
+      setErro('Não foi possível identificar sua conta. Faça login novamente.');
+      return;
+    }
+
     setCarregando(true);
 
-    // Simulação de persistência das configurações do estudante
-    setTimeout(() => {
-      setCarregando(false);
-      setSucesso(true);
+    try{
+      const uid = usuario.uid;
+      
+      const estudanteRef = doc(db, 'estudantes', uid);
+      const perfilRef = doc(db, 'perfisAprendizagem', uid);
 
-      // Transição automática para a tela inicial
-      setTimeout(() => {
-        router.replace('/telainicial');
-      }, 1200);
-    }, 800);
+      const batch = writeBatch(db);
+
+      batch.set(
+        estudanteRef,
+        {
+          id: uid,
+          nome: usuario.displayName,
+          email: usuario.email,
+          dataCadastro: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      batch.set(
+        perfilRef,
+        {
+          estudanteId: uid,
+          curso: curso.trim(),
+          periodo: periodo.trim(),
+          metaHoras: Number(metaHoras),
+          metodoAnotacao,
+          canais: [...canais],
+          dataIdentificacao: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      await batch.commit();
+
+      setSucesso(true);
+      setTimeout(() => {router.replace('/telainicial');}, 1200);
+    } catch (error) {
+        console.error('Erro ao salvar perfil:', error);
+
+        setErro('Não foi possível salvar seu perfil. Verifique sua conexão e tente novamente.');
+      } finally {setCarregando(false);}
   };
 
   return (

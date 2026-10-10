@@ -22,6 +22,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithCredential,
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '../services/firebase';
 import { GoogleSignin, isGoogleSigninSupported } from '../services/googleSignin';
@@ -32,6 +33,7 @@ export interface TelaCadastroProps {
 }
 
 export function TelaCadastro(props: TelaCadastroProps) {
+  const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -56,6 +58,10 @@ export function TelaCadastro(props: TelaCadastroProps) {
   }
 
   async function criarConta() {
+    if (!nome.trim()) {
+      setErro('Informe seu nome completo!');
+      return;
+    }
     const emailNormalizado = email.trim();
 
     if (!emailNormalizado || !senha || !confirmarSenha) {
@@ -88,9 +94,20 @@ export function TelaCadastro(props: TelaCadastroProps) {
     setCarregando(true);
 
     try {
-      if (auth) {
-        await createUserWithEmailAndPassword(auth, emailNormalizado, senha);
+      if (!auth) {
+        setErro('O serviço de autenticação não está disponível.');
+        return;
       }
+
+      const credencial = await createUserWithEmailAndPassword(
+        auth,
+        emailNormalizado,
+        senha
+      );
+
+      await updateProfile(credencial.user, {
+        displayName: nome.trim(),
+      });
 
       setSucesso('Conta criada com sucesso! Redirecionando...');
 
@@ -182,6 +199,22 @@ export function TelaCadastro(props: TelaCadastroProps) {
                 <Text style={styles.sucessoTexto}>{sucesso}</Text>
               </View>
             )}
+
+            <View style={styles.field}>
+              <Text testID="88:1070" style={styles.label}>
+                Nome Completo
+              </Text>
+              <Input
+                placeholder="Digite seu nome completo"
+                editable={!carregando}
+                autoCapitalize='words'
+                value={nome}
+                onChangeText={(texto) => {
+                  setNome(texto);
+                  setErro('');
+                }}
+              />
+            </View>
 
             <View style={styles.field}>
               <Text testID="88:1070" style={styles.label}>

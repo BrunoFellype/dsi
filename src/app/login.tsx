@@ -26,9 +26,9 @@ import {
   GoogleAuthProvider,
   signInWithCredential,
 } from 'firebase/auth';
-import { auth as authInstance } from '../services/firebase';
+import { auth, auth as authInstance, db } from '../services/firebase';
+import {doc, getDoc } from 'firebase/firestore';
 import { GoogleSignin, isGoogleSigninSupported } from '../services/googleSignin';
-import { Platform } from 'react-native';
 
 export interface TelaLoginProps {
   /** Used to override the default root style. */
@@ -112,6 +112,13 @@ export function TelaLogin(props: TelaLoginProps) {
 
     try {
       await GoogleSignin.hasPlayServices();
+      
+      try{
+        await GoogleSignin.signOut();
+      } catch {
+
+      }
+      
       const response = await GoogleSignin.signIn();
 
       if (response.type !== 'success') {
@@ -126,16 +133,31 @@ export function TelaLogin(props: TelaLoginProps) {
         setCarregando(false);
         return;
       }
+      
+      const credential = await GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(authInstance, credential);
+      const uid = userCredential.user.uid;
 
-      if (authInstance) {
-        const credential = await GoogleAuthProvider.credential(idToken);
-        await signInWithCredential(authInstance, credential);
+      const estudanteRef = doc(db, 'estudantes', uid);
+      const perfilRef = doc(db, 'perfisAprendizagem', uid);
+      const [estudanteSnap, perfilSnap] = await Promise.all([
+        getDoc(estudanteRef),
+        getDoc(perfilRef)
+      ]);
+
+      if (estudanteSnap.exists() && perfilSnap.exists()) {
+        router.replace('/telainicial');
+      } else {
+        router.replace('/onboarding');
       }
-
-      // Primeiro login com Google pode seguir para onboarding
-      router.replace('/onboarding');
-    } catch (error: any) {
-      setErro('Não foi possível autenticar com o Google.');
+    } catch (error:any) {
+      console.error('Erro no login Google: ', error);
+      
+      if (error?.code === 'auth/network-request-failed') {
+        setErro('Erro de conexão. Verifique sua internet e tente novamente.');
+      } else {
+        setErro('Não foi possível autenticar com o Google.');
+      }
     } finally {
       setCarregando(false);
     }
