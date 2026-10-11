@@ -111,42 +111,41 @@ export function TelaCalendario(props: TelaCalendarioProps) {
 
 const styles = StyleSheet.create({
   root: {
-    width: 402,
-    height: 874,
+    width: '100%',
+    flex: 1,
+    minHeight: 0,
     flexDirection: 'column',
     alignItems: 'center',
-    backgroundColor: 'rgba(253, 255, 255, 1)',
+    backgroundColor: '#FDFFFF',
   },
 
   header: {
-    width: 402,
-    height: 70,
+    width: '100%',
+    height: 64,
     flexShrink: 0,
-    backgroundColor: 'rgba(154, 217, 235, 1)',
+    backgroundColor: '#9AD9EB',
+    borderBottomWidth: 1,
+    borderBottomColor: '#87C3D5',
   },
 
   telaSup: {
     position: 'relative',
     flexDirection: 'row',
-    width: 400,
-    height: 115,
-    paddingTop: 0,
-    paddingLeft: 10,
-    paddingRight: 20,
-    paddingBottom: 30,
+    width: '100%',
+    height: 96,
+    paddingHorizontal: 16,
     alignItems: 'center',
     flexShrink: 0,
   },
 
   astraImage: {
-    width: 133,
-    height: 133,
-    marginTop: 20,
+    width: 90,
+    height: 42,
   },
 
   profileImage: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     marginLeft: 'auto',
   },
 
@@ -154,18 +153,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 0,
-    color: 'rgba(0, 0, 0, 1)',
-    fontSize: 20,
-    fontWeight: '500',
+    bottom: 8,
+    color: '#1D2A44',
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
   },
 
   frame5: {
-    width: 335,
-    height: 575,
-    marginTop: 10,
-    backgroundColor: 'rgba(229, 244, 248, 1)',
+    width: '88%',
+    maxWidth: 420,
+    flex: 1,
+    minHeight: 0,
+    marginTop: 4,
+    marginBottom: 12,
+    backgroundColor: '#E5F4F8',
+    borderWidth: 1,
+    borderColor: '#C8E0E8',
+    borderRadius: 10,
   },
 
   activitiesContent: {
@@ -182,6 +187,9 @@ const styles = StyleSheet.create({
     padding: 10,
     borderLeftWidth: 4,
     backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#DCE8EE',
+    borderRadius: 10,
   },
 
   activityTitle: {
@@ -209,25 +217,25 @@ const styles = StyleSheet.create({
   },
 
   spacer: {
-    flex: 1,
+    flex: 0,
     width: 100,
   },
 
   frame10: {
     width: '100%',
     flexDirection: 'row',
-    paddingTop: 20,
-    paddingLeft: 13,
-    paddingBottom: 20,
-    paddingRight: 13,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    backgroundColor: 'rgba(244, 244, 252, 1)',
+    backgroundColor: '#F4F4FC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E6EE',
   },
 
   navigationIcon: {
-    width: 40,
-    height: 40,
+    width: 28,
+    height: 28,
   },
 });
 
