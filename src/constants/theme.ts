@@ -1,40 +1,50 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import '@/global.css';
-
 import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    primary: '#3873A0',
+    header: '#9AD9EB',
+    background: '#FDFFFF',
+    backgroundCard: '#E5F4F8',
+    cardBorder: '#D4EBF3',
+    inputBorder: '#9AD9EB',
+    text: '#1D2A44',
+    textSecondary: '#64748B',
+    textMuted: '#94A3B8',
+    link: '#0059FF',
+    error: '#D32F2F',
+    success: '#10B981',
+    warning: '#F59E0B',
+    white: '#FFFFFF',
+    borderLight: '#E2E8F0',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    primary: '#6EA1C5',
+    header: '#2A4B7C',
+    background: '#0B132B',
+    backgroundCard: '#1C2541',
+    cardBorder: '#3A506B',
+    inputBorder: '#41689E',
+    text: '#FFFFFF',
+    textSecondary: '#C9F7FF',
+    textMuted: '#8A99AD',
+    link: '#9AD9EB',
+    error: '#EF4444',
+    success: '#10B981',
+    warning: '#F59E0B',
+    white: '#FFFFFF',
+    borderLight: '#2A4B7C',
   },
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
+export type ThemeColor = keyof typeof Colors.light;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
