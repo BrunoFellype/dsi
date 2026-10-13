@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
   Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import BottomNav from '../components/BottomNav';
 import TopHeader from '../components/TopHeader';
+import { Colors } from '../constants/theme';
 
 interface NotificacaoItem {
   id: string;
-  canal: 'Discord' | 'Google Classroom' | 'Whatsapp' | 'SIGAA';
+  canal: 'Google Classroom' | 'SIGAA' | 'Whatsapp' | 'Discord';
+  disciplina: string;
   titulo: string;
   mensagem: string;
   horario: string;
@@ -20,129 +22,204 @@ interface NotificacaoItem {
   prioridade: 'alta' | 'media' | 'normal';
 }
 
+const PALETA = Colors.light;
+
 export default function TelaNotificacoes() {
+  const [filtroAtivo, setFiltroAtivo] = useState<string>('Todas');
   const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([
     {
       id: '1',
       canal: 'Google Classroom',
+      disciplina: 'Engenharia de Software (DSI)',
       prioridade: 'alta',
-      titulo: 'Entrega de Engenharia de Software (DSI)',
-      mensagem: 'Prof. Bruno postou nova atividade: Envio do código e dossiê do ASTRA até hoje às 23:59.',
-      horario: 'Há 15 min',
+      titulo: 'Envio do Dossiê e Código Final',
+      mensagem: 'Atividade cadastrada com prazo improrrogável até 23:59.',
+      horario: 'Há 10 min',
       lida: false,
     },
     {
       id: '2',
       canal: 'SIGAA',
+      disciplina: 'Banco de Dados',
       prioridade: 'alta',
-      titulo: 'Alteração na Sala de Banco de Dados',
-      mensagem: 'A avaliação prática de Álgebra Relacional de quinta-feira será no Laboratório 2.',
-      horario: 'Hoje 08:20',
+      titulo: 'Alteração do Local da Avaliação',
+      mensagem: 'A prova prática será realizada no Laboratório 2 de Informática.',
+      horario: 'Hoje 08:30',
       lida: false,
     },
     {
       id: '3',
       canal: 'Whatsapp',
+      disciplina: 'Estruturas de Dados',
       prioridade: 'media',
-      titulo: 'Grupo da Turma • Algoritmos',
-      mensagem: 'Monitor Victor compartilhou gabarito dos exercícios de grafos e árvore AVL.',
-      horario: 'Ontem 17:40',
+      titulo: 'Gabarito da Lista de Grafos',
+      mensagem: 'Monitor Victor disponibilizou o roteiro de resolução das árvores AVL.',
+      horario: 'Ontem 18:20',
       lida: true,
     },
     {
       id: '4',
       canal: 'Discord',
+      disciplina: 'Sistemas Operacionais',
       prioridade: 'normal',
-      titulo: 'Canal de Estudos • Sistemas Operacionais',
-      mensagem: 'Dúvidas abertas para a Lista 2 de escalonamento de CPU e semáforos.',
+      titulo: 'Canal de Dúvidas Aberto',
+      mensagem: 'Discussão sobre escalonamento de processos e threads iniciada.',
       horario: 'Há 2 dias',
-      lida: true,
-    },
-    {
-      id: '5',
-      canal: 'Whatsapp',
-      prioridade: 'normal',
-      titulo: 'Comissão de Curso BSI',
-      mensagem: 'Lembrete: Prazo final para cancelamento de disciplinas encerra na sexta-feira.',
-      horario: 'Há 3 dias',
       lida: true,
     },
   ]);
 
-  const marcarTodasLidas = () => {
-    setNotificacoes((prev) => prev.map((n) => ({ ...n, lida: true })));
+  const alternarLeitura = (id: string) => {
+    setNotificacoes((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, lida: !item.lida } : item
+      )
+    );
   };
 
-  const getCanalBadgeColor = (canal: string) => {
+  const marcarTodasComoLidas = () => {
+    setNotificacoes((prev) => prev.map((item) => ({ ...item, lida: true })));
+  };
+
+  const notificacoesFiltradas = notificacoes.filter((item) => {
+    if (filtroAtivo === 'Todas') return true;
+    if (filtroAtivo === 'Urgentes') return item.prioridade === 'alta';
+    return item.canal === filtroAtivo;
+  });
+
+  const contagemNaoLidas = notificacoes.filter((item) => !item.lida).length;
+
+  const obterCoresCanal = (canal: string) => {
     switch (canal) {
       case 'Google Classroom':
-        return { bg: '#E8F5E9', text: '#2E7D32' };
+        return { background: '#E8F5E9', texto: '#2E7D32' };
       case 'SIGAA':
-        return { bg: '#E0F2FE', text: '#0369A1' };
+        return { background: '#E0F2FE', texto: '#0369A1' };
       case 'Whatsapp':
-        return { bg: '#DCFCE7', text: '#15803D' };
+        return { background: '#DCFCE7', texto: '#15803D' };
       case 'Discord':
-        return { bg: '#EDE9FE', text: '#6D28D9' };
+        return { background: '#EDE9FE', texto: '#6D28D9' };
       default:
-        return { bg: '#F1F5F9', text: '#475569' };
+        return { background: '#F1F5F9', texto: '#475569' };
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
-        {/* Top Header Padronizado */}
         <TopHeader
           title="Notificações"
-          subtitle="Avisos & Comunicados Centralizados"
+          subtitle="Alertas & Central de Avisos"
         />
-
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Cabeçalho da Lista (Figura 6) */}
-          <View style={styles.headerRow}>
-            <Text style={styles.secaoTitulo}>
-              Comunicados Recebidos ({notificacoes.filter((n) => !n.lida).length} não lidos)
-            </Text>
-            <Pressable onPress={marcarTodasLidas}>
-              <Text style={styles.marcarLidas}>Marcar lidos</Text>
+          <View style={styles.resumoBox}>
+            <View style={styles.resumoTextos}>
+              <Text style={styles.resumoTitulo}>Central de Avisos</Text>
+              <Text style={styles.resumoDescricao}>
+                Você possui {contagemNaoLidas} comunicado(s) pendente(s) de leitura.
+              </Text>
+            </View>
+            <Pressable
+              onPress={marcarTodasComoLidas}
+              style={({ pressed }) => [
+                styles.btnMarcarTodas,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={styles.btnMarcarTodasTexto}>Marcar lidos</Text>
             </Pressable>
           </View>
 
-          {/* Cards Modulares de Notificação (Figura 6) */}
-          <View style={styles.notifList}>
-            {notificacoes.map((item) => {
-              const canalCor = getCanalBadgeColor(item.canal);
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filtrosBar}
+          >
+            {['Todas', 'Urgentes', 'SIGAA', 'Google Classroom', 'Whatsapp', 'Discord'].map(
+              (opcao) => {
+                const ativo = filtroAtivo === opcao;
+                return (
+                  <Pressable
+                    key={opcao}
+                    onPress={() => setFiltroAtivo(opcao)}
+                    style={[
+                      styles.filtroChip,
+                      ativo && styles.filtroChipAtivo,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filtroChipTexto,
+                        ativo && styles.filtroChipTextoAtivo,
+                      ]}
+                    >
+                      {opcao}
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
+          </ScrollView>
 
+          <View style={styles.listaContainer}>
+            {notificacoesFiltradas.map((item) => {
+              const corCanal = obterCoresCanal(item.canal);
               return (
-                <View
+                <Pressable
                   key={item.id}
-                  style={[
-                    styles.notifCard,
-                    !item.lida && styles.notifNaoLida,
+                  onPress={() => alternarLeitura(item.id)}
+                  style={({ pressed }) => [
+                    styles.cardNotificacao,
+                    !item.lida && styles.cardNaoLido,
+                    pressed && styles.pressed,
                   ]}
                 >
-                  {/* Badge da Fonte de Origem (Figura 6) */}
-                  <View style={styles.cardTopRow}>
-                    <View style={[styles.canalBadge, { backgroundColor: canalCor.bg }]}>
-                      <Text style={[styles.canalBadgeText, { color: canalCor.text }]}>
-                        ● {item.canal}
-                      </Text>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.headerEsquerda}>
+                      <View
+                        style={[
+                          styles.canalTag,
+                          { backgroundColor: corCanal.background },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.canalTagTexto,
+                            { color: corCanal.texto },
+                          ]}
+                        >
+                          {item.canal}
+                        </Text>
+                      </View>
+                      <Text style={styles.disciplinaTexto}>{item.disciplina}</Text>
                     </View>
                     <Text style={styles.horarioTexto}>{item.horario}</Text>
                   </View>
 
-                  <Text style={styles.notifTitulo}>{item.titulo}</Text>
-                  <Text style={styles.notifMensagem}>{item.mensagem}</Text>
-                </View>
+                  <Text style={styles.tituloTexto}>{item.titulo}</Text>
+                  <Text style={styles.mensagemTexto}>{item.mensagem}</Text>
+
+                  <View style={styles.cardFooter}>
+                    <View style={styles.prioridadeContainer}>
+                      {item.prioridade === 'alta' ? (
+                        <View style={styles.urgenteBadge}>
+                          <Text style={styles.urgenteBadgeTexto}>Prazo Crítico</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                    <Text style={styles.statusLeituraTexto}>
+                      {item.lida ? 'Lida' : 'Toque para marcar como lida'}
+                    </Text>
+                  </View>
+                </Pressable>
               );
             })}
           </View>
         </ScrollView>
-
         <BottomNav currentRoute="/telanotificacoes" />
       </View>
     </SafeAreaView>
@@ -152,86 +229,174 @@ export default function TelaNotificacoes() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#9AD9EB',
+    backgroundColor: PALETA.header,
   },
   root: {
     flex: 1,
-    backgroundColor: '#F8FCFD',
+    backgroundColor: PALETA.background,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
     alignItems: 'center',
-    paddingTop: 14,
-    paddingBottom: 24,
+    paddingTop: 16,
+    paddingBottom: 30,
   },
-
-  headerRow: {
+  resumoBox: {
     width: '90%',
     maxWidth: 420,
+    backgroundColor: PALETA.backgroundCard,
+    borderWidth: 1,
+    borderColor: PALETA.cardBorder,
+    borderRadius: 12,
+    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  secaoTitulo: {
-    fontSize: 15,
+  resumoTextos: {
+    flex: 1,
+    marginRight: 10,
+  },
+  resumoTitulo: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1D2A44',
+    color: PALETA.text,
   },
-  marcarLidas: {
+  resumoDescricao: {
+    fontSize: 12,
+    color: PALETA.textSecondary,
+    marginTop: 2,
+  },
+  btnMarcarTodas: {
+    backgroundColor: PALETA.white,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: PALETA.inputBorder,
+  },
+  btnMarcarTodasTexto: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: PALETA.primary,
+  },
+  filtrosBar: {
+    paddingHorizontal: '5%',
+    gap: 8,
+    marginBottom: 16,
+  },
+  filtroChip: {
+    backgroundColor: PALETA.white,
+    borderWidth: 1,
+    borderColor: PALETA.borderLight,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  filtroChipAtivo: {
+    backgroundColor: PALETA.text,
+    borderColor: PALETA.text,
+  },
+  filtroChipTexto: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#3873A0',
+    color: PALETA.textSecondary,
   },
-
-  notifList: {
+  filtroChipTextoAtivo: {
+    color: PALETA.white,
+  },
+  listaContainer: {
     width: '90%',
     maxWidth: 420,
-    gap: 10,
+    gap: 12,
   },
-  notifCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
+  cardNotificacao: {
+    backgroundColor: PALETA.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: PALETA.borderLight,
+    borderRadius: 12,
+    padding: 14,
     gap: 6,
-    elevation: 1,
   },
-  notifNaoLida: {
-    backgroundColor: '#F7FCFE',
-    borderColor: '#9AD9EB',
+  cardNaoLido: {
+    backgroundColor: PALETA.backgroundCard,
+    borderColor: PALETA.inputBorder,
     borderWidth: 1.5,
   },
-  cardTopRow: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  canalBadge: {
+  headerEsquerda: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  canalTag: {
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
   },
-  canalBadgeText: {
+  canalTagTexto: {
     fontSize: 11,
     fontWeight: '700',
   },
-  horarioTexto: {
-    fontSize: 10.5,
-    color: '#94A3B8',
+  disciplinaTexto: {
+    fontSize: 11,
+    color: PALETA.textSecondary,
     fontWeight: '500',
+    flexShrink: 1,
   },
-  notifTitulo: {
-    fontSize: 13.5,
+  horarioTexto: {
+    fontSize: 11,
+    color: PALETA.textMuted,
+  },
+  tituloTexto: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#1D2A44',
+    color: PALETA.text,
+    marginTop: 2,
   },
-  notifMensagem: {
-    fontSize: 12,
-    color: '#334155',
-    lineHeight: 17,
+  mensagemTexto: {
+    fontSize: 12.5,
+    color: PALETA.textSecondary,
+    lineHeight: 18,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: PALETA.borderLight,
+  },
+  prioridadeContainer: {
+    flex: 1,
+  },
+  urgenteBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  urgenteBadgeTexto: {
+    color: PALETA.error,
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  statusLeituraTexto: {
+    fontSize: 11,
+    color: PALETA.textMuted,
+    fontStyle: 'italic',
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });
