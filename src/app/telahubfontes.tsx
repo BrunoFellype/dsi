@@ -1,16 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  Switch,
   Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import TopHeader from '../components/TopHeader';
 import BottomNav from '../components/BottomNav';
+import TopHeader from '../components/TopHeader';
+import { Colors } from '../constants/theme';
 
 interface FonteIntegracao {
   id: string;
@@ -20,224 +21,222 @@ interface FonteIntegracao {
   status: 'sincronizado' | 'sincronizando' | 'erro';
   statusTexto: string;
   ultimaSinc: string;
-  icone: string;
 }
+
+const PALETA = Colors.light;
 
 export default function TelaHubFontes() {
   const [fontes, setFontes] = useState<FonteIntegracao[]>([
     {
       id: 'classroom',
       nome: 'Google Classroom',
-      tipo: 'Ambiente Virtual (AVA)',
+      tipo: 'Ambiente Virtual de Aprendizagem (AVA)',
       ativo: true,
       status: 'sincronizado',
-      statusTexto: 'Conectado • 5 disciplinas',
+      statusTexto: 'Conectado • 5 disciplinas ativas',
       ultimaSinc: 'Hoje às 08:30',
-      icone: '🏫',
     },
     {
       id: 'sigaa',
       nome: 'Portal SIGAA (UFRPE)',
-      tipo: 'Sistema de Gestão Acadêmica',
+      tipo: 'Sistema Integrado de Gestão Acadêmica',
       ativo: true,
       status: 'sincronizado',
-      statusTexto: 'Conectado • Matrícula 2024.1',
+      statusTexto: 'Conectado • Matrícula ativa',
       ultimaSinc: 'Hoje às 08:30',
-      icone: '🏛️',
     },
     {
       id: 'whatsapp',
       nome: 'WhatsApp Acadêmico',
-      tipo: 'Grupos das Disciplinas',
+      tipo: 'Grupos e Comunicados Rápidos',
       ativo: true,
       status: 'sincronizado',
       statusTexto: '3 grupos monitorados',
-      ultimaSinc: 'Há 12 min',
-      icone: '💬',
+      ultimaSinc: 'Há 15 min',
     },
     {
       id: 'discord',
       nome: 'Discord de Turma',
-      tipo: 'Canais de Dúvidas e Estudos',
-      ativo: true,
-      status: 'sincronizado',
-      statusTexto: 'Conectado • Canal BSI',
-      ultimaSinc: 'Há 25 min',
-      icone: '👾',
+      tipo: 'Canais de Monitores e Dúvidas',
+      ativo: false,
+      status: 'erro',
+      statusTexto: 'Requer autenticação',
+      ultimaSinc: 'Não sincronizado',
     },
   ]);
 
-  const [sincronizando, setSincronizando] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
+  const [sincronizando, setSincronizando] = useState<boolean>(false);
+  const [cooldown, setCooldown] = useState<number>(0);
 
-  // Timer de cooldown (US05 - Critério 5: 5 minutos / 300 segundos)
   useEffect(() => {
-    let timer: any;
+    let intervalo: ReturnType<typeof setInterval>;
     if (cooldown > 0) {
-      timer = setInterval(() => {
-        setCooldown((prev) => prev - 1);
+      intervalo = setInterval(() => {
+        setCooldown((tempoRestante) => tempoRestante - 1);
       }, 1000);
     }
-    return () => clearInterval(timer);
+    return () => clearInterval(intervalo);
   }, [cooldown]);
 
-  const toggleFonte = (id: string) => {
+  const alternarStatusFonte = (id: string) => {
     setFontes((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, ativo: !f.ativo } : f))
+      prev.map((item) =>
+        item.id === id ? { ...item, ativo: !item.ativo } : item
+      )
     );
   };
 
-  const handleSincronizarTodas = () => {
+  const executarSincronizacaoGlobal = () => {
     if (cooldown > 0) {
-      const min = Math.floor(cooldown / 60);
-      const seg = cooldown % 60;
+      const minutos = Math.floor(cooldown / 60);
+      const segundos = cooldown % 60;
       Alert.alert(
-        'Aguarde o Cooldown',
-        `Para não sobrecarregar as APIs acadêmicas, aguarde ${min}m ${seg}s para uma nova sincronização.`
+        'Cooldown Ativo',
+        `Aguarde ${minutos}m ${segundos}s para efetuar uma nova sincronização sem sobrecarregar as APIs institucionais.`
       );
       return;
     }
 
     setSincronizando(true);
+
     setTimeout(() => {
       setSincronizando(false);
-      setCooldown(300); // 5 minutos de cooldown
-      const agora = 'Agora há pouco';
+      setCooldown(300);
       setFontes((prev) =>
-        prev.map((f) => ({
-          ...f,
-          ultimaSinc: agora,
-          status: 'sincronizado',
-        }))
+        prev.map((item) =>
+          item.ativo
+            ? {
+                ...item,
+                status: 'sincronizado',
+                statusTexto: 'Conectado e atualizado',
+                ultimaSinc: 'Agora há pouco',
+              }
+            : item
+        )
       );
       Alert.alert(
         'Sincronização Concluída',
-        'Todas as 4 fontes (SIGAA, Classroom, WhatsApp e Discord) foram atualizadas e consolidadas no ASTRA.'
+        'As informações das plataformas ativas foram consolidadas com sucesso no ASTRA.'
       );
     }, 1500);
   };
 
-  const formatCooldown = (segundos: number) => {
-    const m = Math.floor(segundos / 60);
-    const s = segundos % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  const formatarTempo = (segundos: number) => {
+    const min = Math.floor(segundos / 60);
+    const seg = segundos % 60;
+    return `${min}:${seg < 10 ? '0' : ''}${seg}`;
+  };
+
+  const selecionarArquivoIcs = () => {
+    Alert.alert(
+      'Importação de Calendário (.ics)',
+      'Selecione um arquivo de extensão .ics válido (máximo de 5 MB e não vazio) para integrar prazos ao calendário.'
+    );
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.root}>
-        {/* Top Header Padronizado */}
         <TopHeader
           title="Hub de Fontes"
-          subtitle="Integração & Sincronização Acadêmica"
+          subtitle="Sincronização & Provedores Externos"
         />
-
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* BANNER EXPLICATIVO (US05) */}
-          <View style={styles.infoBanner}>
-            <Text style={styles.infoTitulo}>Centralização de Canais</Text>
-            <Text style={styles.infoDesc}>
-              O ASTRA conecta suas plataformas acadêmicas e extrai comunicados, prazos e notas para alimentar o algoritmo de agrupamento via IA.
+          <View style={styles.bannerInfo}>
+            <Text style={styles.bannerTitulo}>Central de Conectores</Text>
+            <Text style={styles.bannerDescricao}>
+              Conecte suas fontes oficiais e informais para que o ASTRA extraia avisos e agrupe atividades de forma unificada.
             </Text>
           </View>
 
-          {/* LISTA DE CONECTORES (Figura 7) */}
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Plataformas Conectadas</Text>
-            <Text style={styles.sectionCount}>{fontes.filter((f) => f.ativo).length} de {fontes.length} ativas</Text>
+          <View style={styles.secaoHeader}>
+            <Text style={styles.secaoTitulo}>Plataformas Acadêmicas</Text>
+            <Text style={styles.secaoContador}>
+              {fontes.filter((f) => f.ativo).length} de {fontes.length} ativas
+            </Text>
           </View>
 
           <View style={styles.listaFontes}>
             {fontes.map((item) => (
               <View key={item.id} style={styles.cardFonte}>
-                <View style={styles.fonteTopRow}>
-                  <View style={styles.iconeContainer}>
-                    <Text style={{ fontSize: 24 }}>{item.icone}</Text>
+                <View style={styles.cardLinhaSuperior}>
+                  <View style={styles.infoFonte}>
+                    <Text style={styles.nomeFonte}>{item.nome}</Text>
+                    <Text style={styles.tipoFonte}>{item.tipo}</Text>
                   </View>
-
-                  <View style={styles.fonteInfo}>
-                    <Text style={styles.fonteNome}>{item.nome}</Text>
-                    <Text style={styles.fonteTipo}>{item.tipo}</Text>
-                  </View>
-
                   <Switch
                     value={item.ativo}
-                    onValueChange={() => toggleFonte(item.id)}
-                    trackColor={{ false: '#CBD5E1', true: '#9AD9EB' }}
-                    thumbColor={item.ativo ? '#3873A0' : '#FFFFFF'}
+                    onValueChange={() => alternarStatusFonte(item.id)}
+                    trackColor={{ false: PALETA.borderLight, true: PALETA.inputBorder }}
+                    thumbColor={item.ativo ? PALETA.primary : PALETA.white}
                   />
                 </View>
 
-                {item.ativo && (
-                  <View style={styles.fonteFooterRow}>
-                    <View style={styles.statusBadgeRow}>
+                {item.ativo ? (
+                  <View style={styles.cardLinhaInferior}>
+                    <View style={styles.statusIndicador}>
                       <View
                         style={[
-                          styles.statusDot,
+                          styles.statusPonto,
                           {
                             backgroundColor:
                               item.status === 'sincronizado'
-                                ? '#10B981'
+                                ? PALETA.success
                                 : item.status === 'sincronizando'
-                                ? '#F59E0B'
-                                : '#EF4444',
+                                ? PALETA.warning
+                                : PALETA.error,
                           },
                         ]}
                       />
                       <Text style={styles.statusTexto}>{item.statusTexto}</Text>
                     </View>
-                    <Text style={styles.ultimaSincTexto}>Última sinc: {item.ultimaSinc}</Text>
+                    <Text style={styles.ultimaSincTexto}>{item.ultimaSinc}</Text>
                   </View>
-                )}
+                ) : null}
               </View>
             ))}
           </View>
 
-          {/* BOTÃO GLOBAL DE SINCRONIZAÇÃO (US05 - Critério 5) */}
           <Pressable
+            onPress={executarSincronizacaoGlobal}
+            disabled={cooldown > 0 || sincronizando}
             style={({ pressed }) => [
               styles.btnSincronizar,
-              cooldown > 0 && styles.btnSincronizarDisabled,
+              cooldown > 0 && styles.btnDesabilitado,
               pressed && cooldown === 0 && styles.pressed,
             ]}
-            onPress={handleSincronizarTodas}
-            disabled={cooldown > 0 || sincronizando}
           >
             <Text style={styles.btnSincronizarTexto}>
               {sincronizando
-                ? '🔄 Sincronizando Fontes...'
+                ? 'Sincronizando plataformas...'
                 : cooldown > 0
-                ? `⏳ Cooldown Ativo (${formatCooldown(cooldown)})`
-                : '⚡ Sincronizar Todas as Fontes Agora'}
+                ? `Aguarde Cooldown (${formatarTempo(cooldown)})`
+                : 'Sincronizar Todas as Fontes Agora'}
             </Text>
           </Pressable>
 
-          {/* IMPORTAÇÃO DE ARQUIVO .ICS (US05 - Critérios 6 e 7) */}
-          <View style={styles.cardIcs}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.icsTitulo}>Importar Calendário Externo (.ics)</Text>
-              <Text style={styles.icsDesc}>
-                Importe calendários do Google ou Outlook (formato .ics até 5MB).
+          <View style={styles.cardUpload}>
+            <View style={styles.uploadInfo}>
+              <Text style={styles.uploadTitulo}>Importação de Calendário (.ics)</Text>
+              <Text style={styles.uploadDescricao}>
+                Compatível com arquivos exportados do Google Agenda ou SIGAA (limite de 5 MB).
               </Text>
             </View>
             <Pressable
-              style={styles.btnIcs}
-              onPress={() =>
-                Alert.alert(
-                  'Importação de Calendário',
-                  'Selecione um arquivo .ics válido (máx. 5 MB) do seu dispositivo para importar datas comemorativas e cronograma acadêmico.'
-                )
-              }
+              onPress={selecionarArquivoIcs}
+              style={({ pressed }) => [
+                styles.btnUpload,
+                pressed && styles.pressed,
+              ]}
             >
-              <Text style={styles.btnIcsText}>Upload .ics</Text>
+              <Text style={styles.btnUploadTexto}>Upload .ics</Text>
             </Pressable>
           </View>
         </ScrollView>
-
         <BottomNav currentRoute="/telahubfontes" />
       </View>
     </SafeAreaView>
@@ -247,11 +246,11 @@ export default function TelaHubFontes() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#9AD9EB',
+    backgroundColor: PALETA.header,
   },
   root: {
     flex: 1,
-    backgroundColor: '#F8FCFD',
+    backgroundColor: PALETA.background,
   },
   scroll: {
     flex: 1,
@@ -259,50 +258,47 @@ const styles = StyleSheet.create({
   scrollContent: {
     alignItems: 'center',
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 30,
   },
-
-  infoBanner: {
+  bannerInfo: {
     width: '90%',
     maxWidth: 420,
-    backgroundColor: '#E5F4F8',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: PALETA.backgroundCard,
     borderWidth: 1,
-    borderColor: '#9AD9EB',
+    borderColor: PALETA.cardBorder,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 16,
+    gap: 4,
   },
-  infoTitulo: {
-    fontSize: 14,
+  bannerTitulo: {
+    fontSize: 15,
     fontWeight: '700',
-    color: '#1D2A44',
-    marginBottom: 4,
+    color: PALETA.text,
   },
-  infoDesc: {
+  bannerDescricao: {
     fontSize: 12,
-    color: '#334155',
-    lineHeight: 17,
+    color: PALETA.textSecondary,
+    lineHeight: 18,
   },
-
-  sectionHeaderRow: {
+  secaoHeader: {
     width: '90%',
     maxWidth: 420,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  sectionTitle: {
+  secaoTitulo: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1D2A44',
+    color: PALETA.text,
   },
-  sectionCount: {
+  secaoContador: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#64748B',
+    color: PALETA.textSecondary,
   },
-
   listaFontes: {
     width: '90%',
     maxWidth: 420,
@@ -310,54 +306,46 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   cardFonte: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
+    backgroundColor: PALETA.white,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 10,
-    elevation: 1,
-  },
-  fonteTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconeContainer: {
-    width: 44,
-    height: 44,
+    borderColor: PALETA.cardBorder,
     borderRadius: 12,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 16,
+    gap: 10,
   },
-  fonteInfo: {
-    flex: 1,
-  },
-  fonteNome: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  fonteTipo: {
-    fontSize: 11.5,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  fonteFooterRow: {
+  cardLinhaSuperior: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
   },
-  statusBadgeRow: {
+  infoFonte: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  nomeFonte: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: PALETA.text,
+  },
+  tipoFonte: {
+    fontSize: 11.5,
+    color: PALETA.textSecondary,
+    marginTop: 2,
+  },
+  cardLinhaInferior: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: PALETA.borderLight,
+  },
+  statusIndicador: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  statusDot: {
+  statusPonto: {
     width: 8,
     height: 8,
     borderRadius: 4,
@@ -365,70 +353,71 @@ const styles = StyleSheet.create({
   statusTexto: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#334155',
+    color: PALETA.textSecondary,
   },
   ultimaSincTexto: {
     fontSize: 11,
-    color: '#94A3B8',
+    color: PALETA.textMuted,
   },
-
-  // BOTÃO GLOBAL
   btnSincronizar: {
     width: '90%',
     maxWidth: 420,
-    backgroundColor: '#3873A0',
-    borderRadius: 12,
+    backgroundColor: PALETA.primary,
     paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
-  btnSincronizarDisabled: {
-    backgroundColor: '#94A3B8',
+  btnDesabilitado: {
+    backgroundColor: PALETA.textMuted,
   },
   btnSincronizarTexto: {
-    color: '#FFFFFF',
+    color: PALETA.white,
     fontSize: 14,
     fontWeight: '700',
   },
-  pressed: {
-    opacity: 0.85,
-  },
-
-  // CARD .ICS
-  cardIcs: {
+  cardUpload: {
     width: '90%',
     maxWidth: 420,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: PALETA.backgroundCard,
+    borderWidth: 1,
+    borderColor: PALETA.cardBorder,
     borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+    padding: 16,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 10,
+    alignItems: 'center',
+    gap: 12,
   },
-  icsTitulo: {
-    fontSize: 13,
+  uploadInfo: {
+    flex: 1,
+  },
+  uploadTitulo: {
+    fontSize: 13.5,
     fontWeight: '700',
-    color: '#1D2A44',
+    color: PALETA.text,
   },
-  icsDesc: {
-    fontSize: 11,
-    color: '#64748B',
+  uploadDescricao: {
+    fontSize: 11.5,
+    color: PALETA.textSecondary,
     marginTop: 2,
+    lineHeight: 16,
   },
-  btnIcs: {
-    backgroundColor: '#E5F4F8',
+  btnUpload: {
+    backgroundColor: PALETA.white,
     borderWidth: 1,
-    borderColor: '#9AD9EB',
+    borderColor: PALETA.inputBorder,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
-  btnIcsText: {
+  btnUploadTexto: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#3873A0',
+    color: PALETA.primary,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });
