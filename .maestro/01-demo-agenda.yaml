@@ -1,0 +1,14 @@
+# Fluxo: entrar com dados de exemplo e concluir uma tarefa na agenda.
+# Rodar: maestro test .maestro   (requer o app instalado e o Maestro CLI)
+appId: com.astra.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Explorar com dados de exemplo"
+- assertVisible: "Próximos prazos"
+- tapOn: "Agenda"
+- assertVisible: "Pendentes"
+- tapOn:
+    text: "Marcar \"Entrega do dossiê do projeto\" como concluída"
+- tapOn: "Concluídas"
+- assertVisible: "Entrega do dossiê do projeto"

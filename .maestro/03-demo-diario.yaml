@@ -1,0 +1,13 @@
+# Fluxo: registrar o dia no diário e ver o desempenho.
+appId: com.astra.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Explorar com dados de exemplo"
+- tapOn: "Diário de rotina"
+- tapOn: "Aumentar Horas de sono"
+- tapOn: "4"
+- tapOn: "Atualizar registro de hoje"
+- assertVisible: "Registro de hoje salvo."
+- tapOn: "Ver desempenho"
+- assertVisible: "Pontos de atenção"
