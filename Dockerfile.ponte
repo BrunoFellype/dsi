@@ -1,0 +1,19 @@
+# Ponte ASTRA <-> SIGAA. Construa a partir da raiz do repositório:
+#   docker build -f Dockerfile.ponte -t astra-ponte .
+#   docker run -p 3333:3333 -e ALLOWED_ORIGIN=https://seu-app.exemplo -e TRUST_PROXY=1 astra-ponte
+FROM node:22-alpine
+WORKDIR /app
+
+# A biblioteca compilada fica em vendor/ e o servidor a instala como cópia
+COPY vendor ./vendor
+COPY server/package.json server/.npmrc ./server/
+WORKDIR /app/server
+RUN npm install --omit=dev --no-audit --no-fund
+
+COPY server/index.js server/mock.js server/mock-start.js ./
+
+ENV NODE_ENV=production PORT=3333 TRUST_PROXY=1
+USER node
+EXPOSE 3333
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:3333/saude || exit 1
+CMD ["node", "index.js"]

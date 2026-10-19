@@ -1,0 +1,15 @@
+# Hospedagem da ponte no Render (https://render.com). Conecte o repositório e use "Blueprint".
+# O Render entrega HTTPS automaticamente.
+services:
+  - type: web
+    name: astra-ponte-sigaa
+    runtime: docker
+    dockerfilePath: ./Dockerfile.ponte
+    healthCheckPath: /saude
+    plan: free
+    envVars:
+      - key: TRUST_PROXY
+        value: "1"
+      # Preencha no painel do Render com o endereço do app web (ex.: https://astra.exemplo)
+      - key: ALLOWED_ORIGIN
+        sync: false
