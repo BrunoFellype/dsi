@@ -1,0 +1,15 @@
+{
+  "name": "sigaa-api",
+  "version": "1.0.35",
+  "description": "Cópia compilada da sigaa-api-UFRPE (https://github.com/renatobbarros/sigaa-api-UFRPE).",
+  "main": "dist/sigaa-all-types.js",
+  "license": "MIT",
+  "dependencies": {
+    "cheerio": "1.0.0-rc.12",
+    "formdata-node": "^3.6.3",
+    "he": "^1.2.0",
+    "iconv-lite": "^0.6.3",
+    "lodash": "^4.17.20",
+    "source-map-support": "^0.5.19"
+  }
+}
