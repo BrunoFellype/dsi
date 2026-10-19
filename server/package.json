@@ -1,0 +1,16 @@
+{
+  "name": "astra-sigaa-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ponte entre o app ASTRA e o SIGAA da UFRPE (usa a sigaa-api-UFRPE).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "mock": "node mock-start.js",
+    "test": "node --test --test-force-exit teste-nativo.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "sigaa-api": "file:../vendor/sigaa-api"
+  }
+}
