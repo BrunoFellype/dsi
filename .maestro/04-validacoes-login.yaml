@@ -1,0 +1,10 @@
+# Fluxo: validações de login e cadastro (não cria conta).
+appId: com.astra.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Entrar"
+- assertVisible: "Preencha seu e-mail e sua senha."
+- tapOn: "Criar uma conta"
+- tapOn: "Criar conta"
+- assertVisible: "Informe seu nome completo."

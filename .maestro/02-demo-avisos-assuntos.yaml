@@ -1,0 +1,15 @@
+# Fluxo: ver avisos sem repetição e corrigir o assunto de uma mensagem.
+appId: com.astra.app
+---
+- launchApp:
+    clearState: true
+- tapOn: "Explorar com dados de exemplo"
+- tapOn: "Avisos"
+- assertVisible: "Também enviado em"
+- tapOn: "Assuntos"
+- assertVisible: "Banco de Dados"
+- tapOn: "Banco de Dados, .* mensagens"
+- tapOn:
+    text: "Assunto errado?"
+    index: 0
+- assertVisible: "Estrutura de Dados"

@@ -40,11 +40,6 @@ yarn-error.*
 /ios
 /android
 
-# Claude Code / AI
-.claude/
-CLAUDE.md
-AGENTS.md
-
 # IDE
 .vscode/*
 !.vscode/extensions.json
@@ -63,3 +58,5 @@ src/services/firebase.ts
 
 #Configurações do Google/Firebase para o aplicativo Andorid
 google-services.json
+# Cópia compilada da sigaa-api (precisa ir para o repositório)
+!vendor/sigaa-api/dist/
