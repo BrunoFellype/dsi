@@ -1,20 +1,36 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 
-export default function RootLayout() {
+import { AstraProvider } from '@/lib/store';
+import { useTheme } from '@/hooks/use-theme';
+
+function Raiz() {
+  const t = useTheme();
+
   useEffect(() => {
-    // Garante o fechamento imediato da splash screen assim que o layout montar
     SplashScreen.hideAsync().catch(() => {});
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'fade',
-      }}
-    />
+    <>
+      <StatusBar style="auto" />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: 'fade',
+          contentStyle: { backgroundColor: t.background },
+        }}
+      />
+    </>
   );
 }
 
+export default function RootLayout() {
+  return (
+    <AstraProvider>
+      <Raiz />
+    </AstraProvider>
+  );
+}
