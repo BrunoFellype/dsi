@@ -1,44 +1,23 @@
-import {
-  ScrollView,
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
-import { useState } from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from 'react';
+import { Image, Pressable, View } from 'react-native';
 import { router } from 'expo-router';
-
-import type {
-  ViewStyle,
-  StyleProp,
-} from 'react-native';
-
-import Button from '../components/Button';
-import Input from '../components/Input';
-import GoogleButton from '../components/GoogleButton';
-
 import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
   GoogleAuthProvider,
+  sendPasswordResetEmail,
   signInWithCredential,
+  signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { auth, auth as authInstance, db } from '../services/firebase';
-import {doc, getDoc } from 'firebase/firestore';
-import { GoogleSignin, isGoogleSigninSupported } from '../services/googleSignin';
+import { doc, getDoc } from 'firebase/firestore';
 
-export interface TelaLoginProps {
-  /** Used to override the default root style. */
-  style?: StyleProp<ViewStyle>;
+import { Botao, Campo, Cartao, Mensagem, Tela, Txt } from '@/components/ui';
+import { auth, db } from '@/services/firebase';
+import { GoogleSignin, isGoogleSigninSupported } from '@/services/googleSignin';
+import { useAstra } from '@/lib/store';
 
-  /** Used to locate this view in end-to-end tests. */
-  testID?: string;
-}
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function TelaLogin(props: TelaLoginProps) {
+export default function Login() {
+  const { entrarDemo } = useAstra();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -48,45 +27,19 @@ export function TelaLogin(props: TelaLoginProps) {
   async function entrar() {
     setErro('');
     setSucesso('');
-
-    if (!email.trim() || !senha.trim()) {
-      setErro('Preencha seu e-mail e sua senha!');
-      return;
-    }
-
-    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-    if (!emailValido) {
-      setErro('Informe um e-mail válido!');
-      return;
-    }
+    if (!email.trim() || !senha) return setErro('Preencha seu e-mail e sua senha.');
+    if (!EMAIL_VALIDO.test(email.trim())) return setErro('Informe um e-mail válido.');
 
     setCarregando(true);
-
     try {
-      if (authInstance) {
-        const userCredential = await signInWithEmailAndPassword(
-          authInstance,
-          email.trim(),
-          senha
-        );
-        // Redireciona: pós-login, verifica se já fez onboarding ou segue para a rotina
-        router.replace('/telainicial');
-      } else {
-        // Fallback demonstrativo caso firebase.ts local ainda não esteja configurado
-        setTimeout(() => {
-          router.replace('/telainicial');
-        }, 500);
-      }
+      await signInWithEmailAndPassword(auth, email.trim(), senha);
+      router.replace('/inicio');
     } catch (error: any) {
       const code = error?.code;
-      if (
-        code === 'auth/invalid-credential' ||
-        code === 'auth/wrong-password' ||
-        code === 'auth/user-not-found'
-      ) {
-        setErro('E-mail ou senha incorretos!');
+      if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        setErro('E-mail ou senha incorretos.');
       } else if (code === 'auth/too-many-requests') {
-        setErro('Muitas tentativas sem sucesso. Tente novamente mais tarde.');
+        setErro('Muitas tentativas. Tente novamente mais tarde.');
       } else {
         setErro('Não foi possível entrar. Verifique seus dados.');
       }
@@ -98,332 +51,106 @@ export function TelaLogin(props: TelaLoginProps) {
   async function continuarComGoogle() {
     setErro('');
     setSucesso('');
-
     if (!isGoogleSigninSupported || !GoogleSignin) {
-      Alert.alert(
-        'Google Sign-In',
-        'O login social com Google depende de binários nativos que não estão no Expo Go padrão. Entre com seu e-mail e senha para testar no Expo Go!'
-      );
-      setErro('Login Google requer Development Build. Use e-mail e senha no Expo Go.');
-      return;
+      return setErro('O login com Google só funciona no app instalado. Use e-mail e senha.');
     }
 
     setCarregando(true);
-
     try {
       await GoogleSignin.hasPlayServices();
-      
-      try{
-        await GoogleSignin.signOut();
-      } catch {
-
-      }
-      
-      const response = await GoogleSignin.signIn();
-
-      if (response.type !== 'success') {
-        setCarregando(false);
-        return;
-      }
+      await GoogleSignin.signOut().catch(() => {});
+      const resposta = await GoogleSignin.signIn();
+      if (resposta.type !== 'success') return;
 
       const { idToken } = await GoogleSignin.getTokens();
+      if (!idToken) return setErro('Não foi possível obter a credencial do Google.');
 
-      if (!idToken) {
-        setErro('Não foi possível obter a credencial do Google!');
-        setCarregando(false);
-        return;
-      }
-      
-      const credential = await GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(authInstance, credential);
-      const uid = userCredential.user.uid;
-
-      const estudanteRef = doc(db, 'estudantes', uid);
-      const perfilRef = doc(db, 'perfisAprendizagem', uid);
-      const [estudanteSnap, perfilSnap] = await Promise.all([
-        getDoc(estudanteRef),
-        getDoc(perfilRef)
+      const credencial = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      const uid = credencial.user.uid;
+      const [estudante, perfil] = await Promise.all([
+        getDoc(doc(db, 'estudantes', uid)),
+        getDoc(doc(db, 'perfisAprendizagem', uid)),
       ]);
-
-      if (estudanteSnap.exists() && perfilSnap.exists()) {
-        router.replace('/telainicial');
-      } else {
-        router.replace('/onboarding');
-      }
-    } catch (error:any) {
-      console.error('Erro no login Google: ', error);
-      
-      if (error?.code === 'auth/network-request-failed') {
-        setErro('Erro de conexão. Verifique sua internet e tente novamente.');
-      } else {
-        setErro('Não foi possível autenticar com o Google.');
-      }
+      router.replace(estudante.exists() && perfil.exists() ? '/inicio' : '/onboarding');
+    } catch (error: any) {
+      setErro(
+        error?.code === 'auth/network-request-failed'
+          ? 'Erro de conexão. Verifique sua internet.'
+          : 'Não foi possível entrar com o Google.'
+      );
     } finally {
       setCarregando(false);
     }
   }
 
-  async function esqueciMinhaSenha() {
+  async function esqueciSenha() {
     setErro('');
     setSucesso('');
-
-    if (!email.trim()) {
-      setErro('Digite seu e-mail no campo acima para recuperar a senha.');
-      return;
-    }
-
+    if (!EMAIL_VALIDO.test(email.trim())) return setErro('Digite seu e-mail acima para receber o link de recuperação.');
     try {
-      if (authInstance) {
-        await sendPasswordResetEmail(authInstance, email.trim());
-        setSucesso('E-mail de recuperação enviado com sucesso!');
-      } else {
-        setSucesso('Link de recuperação enviado para o seu e-mail!');
-      }
-    } catch (error: any) {
-      setErro('Erro ao enviar e-mail de recuperação. Verifique o e-mail digitado.');
+      await sendPasswordResetEmail(auth, email.trim());
+      setSucesso('Enviamos um e-mail de recuperação.');
+    } catch {
+      setErro('Não foi possível enviar o e-mail de recuperação.');
     }
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View
-          testID={props.testID ?? '88:1169'}
-          style={[styles.root, props.style]}
-        >
-          <View testID="88:1043" style={styles.header} />
+    <Tela style={{ paddingTop: 48, gap: 28 }}>
+      <View style={{ alignItems: 'center', gap: 12 }}>
+        <Image
+          source={require('../../assets/images/straremovebgpreview2.png')}
+          style={{ width: 150, height: 70 }}
+          resizeMode="contain"
+          accessibilityLabel="ASTRA"
+        />
+        <Txt v="corpo" cor="textSecondary" style={{ textAlign: 'center' }}>
+          Sua rotina acadêmica em um só lugar.
+        </Txt>
+      </View>
 
-          <Text testID="88:1044" style={styles.bemVindoAAoAstra}>
-            Bem-vindo(a) ao ASTRA
-          </Text>
+      <Cartao style={{ gap: 16 }}>
+        <Campo
+          rotulo="E-mail"
+          value={email}
+          onChangeText={(v) => { setEmail(v); setErro(''); }}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          editable={!carregando}
+        />
+        <Campo
+          rotulo="Senha"
+          value={senha}
+          onChangeText={(v) => { setSenha(v); setErro(''); }}
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="password"
+          editable={!carregando}
+          onSubmitEditing={entrar}
+        />
+        {erro ? <Mensagem tom="erro" texto={erro} /> : null}
+        {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
+        <Botao titulo="Entrar" onPress={entrar} carregando={carregando} />
+        <Pressable onPress={esqueciSenha} hitSlop={8} accessibilityRole="button" style={{ alignSelf: 'center' }}>
+          <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>
+            Esqueci minha senha
+          </Txt>
+        </Pressable>
+      </Cartao>
 
-          <Text
-            testID="88:1045"
-            style={
-              styles.assistenteDeAutorregulacaoDeAprendizagemEProdutividadeAcademica
-            }
-          >
-            {`Assistente de autorregulação de aprendizagem\ne produtividade acadêmica`}
-          </Text>
-
-          <Text testID="88:1048" style={styles.login}>
-            LOGIN
-          </Text>
-
-          {erro ? <Text style={styles.errorText}>{erro}</Text> : null}
-          {sucesso ? <Text style={styles.successText}>{sucesso}</Text> : null}
-
-          <View style={styles.loginBox}>
-            <View style={styles.field}>
-              <Text testID="88:1070" style={styles.label}>
-                Email
-              </Text>
-
-              <Input
-                placeholder="Digite seu email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (erro) setErro('');
-                }}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text testID="88:1071" style={styles.label}>
-                Senha
-              </Text>
-
-              <Input
-                placeholder="Digite sua senha"
-                secureTextEntry
-                autoCapitalize="none"
-                value={senha}
-                onChangeText={(text) => {
-                  setSenha(text);
-                  if (erro) setErro('');
-                }}
-              />
-            </View>
-
-            <Pressable onPress={esqueciMinhaSenha}>
-              <Text testID="88:1066" style={styles.esqueciSenha}>
-                Esqueci minha senha
-              </Text>
-            </Pressable>
-
-            {carregando ? (
-              <ActivityIndicator size="small" color="#1D2A44" style={{ marginVertical: 10 }} />
-            ) : (
-              <Button title="Entrar" onPress={entrar} />
-            )}
-          </View>
-
-          <View style={styles.googleContainer}>
-            <Text style={styles.ou}>OU</Text>
-
-            <GoogleButton onPress={continuarComGoogle} />
-          </View>
-
-          <View style={styles.cadastroContainer}>
-            <Text testID="88:1065" style={styles.naoTemCadastro}>
-              Ainda não tem cadastro?
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                router.replace('/cadastro');
-              }}
-            >
-              <Text testID="88:1066" style={styles.fazerCadastro}>
-                Fazer cadastro
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <View style={{ gap: 12 }}>
+        <Botao titulo="Continuar com Google" icone="logo-google" variante="secundario" onPress={continuarComGoogle} desabilitado={carregando} />
+        <Botao titulo="Criar uma conta" variante="secundario" onPress={() => router.push('/cadastro')} />
+        <Botao
+          titulo="Explorar com dados de exemplo"
+          variante="texto"
+          onPress={() => {
+            entrarDemo();
+            router.replace('/inicio');
+          }}
+        />
+      </View>
+    </Tela>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-
-  scrollContent: {
-    flexGrow: 1,
-    width: '100%',
-    alignItems: 'center',
-  },
-
-  root: {
-    width: '100%',
-    flexGrow: 1,
-    paddingBottom: 70,
-    alignItems: 'center',
-    gap: 16,
-    backgroundColor: '#FDFFFF',
-  },
-
-  header: {
-    width: '100%',
-    height: 70,
-    backgroundColor: '#9AD9EB',
-  },
-
-  bemVindoAAoAstra: {
-    color: '#000000',
-    fontSize: 25,
-    fontWeight: '600',
-    marginTop: 10,
-    textAlign: 'center',
-  },
-
-  assistenteDeAutorregulacaoDeAprendizagemEProdutividadeAcademica: {
-    color: '#333333',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '400',
-    paddingHorizontal: 20,
-    lineHeight: 22,
-  },
-
-  field: {
-    width: '100%',
-    gap: 6,
-  },
-
-  label: {
-    color: '#000000',
-    fontSize: 15,
-    fontWeight: '500',
-  },
-
-  login: {
-    color: '#000000',
-    textAlign: 'center',
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginTop: 6,
-  },
-
-  esqueciSenha: {
-    fontSize: 14,
-    paddingTop: 4,
-    paddingBottom: 4,
-    color: '#0059FF',
-    fontWeight: '400',
-    textDecorationLine: 'underline',
-  },
-
-  loginBox: {
-    width: '85%',
-    maxWidth: 380,
-    padding: 20,
-    gap: 14,
-    borderRadius: 12,
-    backgroundColor: '#E5F4F8',
-    borderWidth: 1,
-    borderColor: '#D4EBF3',
-  },
-
-  ou: {
-    color: '#666666',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-
-  googleContainer: {
-    width: '85%',
-    maxWidth: 380,
-    gap: 14,
-    marginTop: 10,
-  },
-
-  cadastroContainer: {
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 12,
-  },
-
-  naoTemCadastro: {
-    color: '#000000',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '400',
-  },
-
-  fazerCadastro: {
-    color: '#0059FF',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-
-  errorText: {
-    color: '#D32F2F',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-
-  successText: {
-    color: '#2E7D32',
-    fontSize: 14,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-});
-
-export default TelaLogin;

@@ -1,123 +1,55 @@
-import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-
+import React, { useState } from 'react';
+import { View } from 'react-native';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithCredential, updateProfile } from 'firebase/auth';
 
-import type { StyleProp, ViewStyle } from 'react-native';
+import { Botao, Cabecalho, Campo, Cartao, Mensagem, Tela } from '@/components/ui';
+import { auth } from '@/services/firebase';
+import { GoogleSignin, isGoogleSigninSupported } from '@/services/googleSignin';
 
-import Button from '../components/Button';
-import GoogleButton from '../components/GoogleButton';
-import Input from '../components/Input';
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-import {
-  createUserWithEmailAndPassword,
-  GoogleAuthProvider,
-  signInWithCredential,
-  updateProfile
-} from 'firebase/auth';
-import { auth } from '../services/firebase';
-import { GoogleSignin, isGoogleSigninSupported } from '../services/googleSignin';
-
-export interface TelaCadastroProps {
-  style?: StyleProp<ViewStyle>;
-  testID?: string;
+function mapearErro(codigo: string): string {
+  switch (codigo) {
+    case 'auth/email-already-in-use':
+      return 'Este e-mail já está cadastrado.';
+    case 'auth/invalid-email':
+      return 'Formato de e-mail inválido.';
+    case 'auth/weak-password':
+      return 'A senha escolhida é muito fraca.';
+    case 'auth/network-request-failed':
+      return 'Falha de rede. Verifique sua conexão.';
+    default:
+      return 'Não foi possível criar a conta. Tente novamente.';
+  }
 }
 
-export function TelaCadastro(props: TelaCadastroProps) {
+export default function Cadastro() {
   const [nome, setNome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
-  const [confirmarSenha, setConfirmarSenha] = useState('');
-
+  const [confirmar, setConfirmar] = useState('');
   const [erro, setErro] = useState('');
   const [sucesso, setSucesso] = useState('');
   const [carregando, setCarregando] = useState(false);
 
-  function mapearErroFirebase(codigoErro: string): string {
-    switch (codigoErro) {
-      case 'auth/email-already-in-use':
-        return 'Este e-mail já está cadastrado no sistema.';
-      case 'auth/invalid-email':
-        return 'Formato de e-mail inválido.';
-      case 'auth/weak-password':
-        return 'A senha escolhida é muito fraca.';
-      case 'auth/network-request-failed':
-        return 'Falha de rede. Verifique sua conexão com a internet.';
-      default:
-        return 'Ocorreu um erro ao criar a conta. Tente novamente.';
-    }
-  }
-
   async function criarConta() {
-    if (!nome.trim()) {
-      setErro('Informe seu nome completo!');
-      return;
-    }
-    const emailNormalizado = email.trim();
-
-    if (!emailNormalizado || !senha || !confirmarSenha) {
-      setErro('Há campos não preenchidos!');
-      return;
-    }
-
-    const emailValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNormalizado);
-    if (!emailValido) {
-      setErro('Informe um e-mail válido!');
-      return;
-    }
-
-    if (senha.length < 8) {
-      setErro('A senha deve conter no mínimo 8 caracteres!');
-      return;
-    }
-
-    if (!/[A-Za-z]/.test(senha) || !/[0-9]/.test(senha)) {
-      setErro('A senha deve conter pelo menos 1 letra e 1 número!');
-      return;
-    }
-
-    if (senha !== confirmarSenha) {
-      setErro('As senhas digitadas não coincidem!');
-      return;
-    }
+    if (!nome.trim()) return setErro('Informe seu nome completo.');
+    if (!email.trim() || !senha || !confirmar) return setErro('Há campos não preenchidos.');
+    if (!EMAIL_VALIDO.test(email.trim())) return setErro('Informe um e-mail válido.');
+    if (senha.length < 8) return setErro('A senha deve ter no mínimo 8 caracteres.');
+    if (!/[A-Za-z]/.test(senha) || !/[0-9]/.test(senha)) return setErro('A senha precisa de pelo menos 1 letra e 1 número.');
+    if (senha !== confirmar) return setErro('As senhas não coincidem.');
 
     setErro('');
     setCarregando(true);
-
     try {
-      if (!auth) {
-        setErro('O serviço de autenticação não está disponível.');
-        return;
-      }
-
-      const credencial = await createUserWithEmailAndPassword(
-        auth,
-        emailNormalizado,
-        senha
-      );
-
-      await updateProfile(credencial.user, {
-        displayName: nome.trim(),
-      });
-
-      setSucesso('Conta criada com sucesso! Redirecionando...');
-
-      // Pequena pausa para o discente visualizar a mensagem de sucesso
-      setTimeout(() => {
-        router.replace('/onboarding');
-      }, 1000);
+      const credencial = await createUserWithEmailAndPassword(auth, email.trim(), senha);
+      await updateProfile(credencial.user, { displayName: nome.trim() });
+      setSucesso('Conta criada! Redirecionando...');
+      setTimeout(() => router.replace('/onboarding'), 800);
     } catch (error: any) {
-      const mensagem = mapearErroFirebase(error?.code ?? '');
-      setErro(mensagem);
+      setErro(mapearErro(error?.code ?? ''));
     } finally {
       setCarregando(false);
     }
@@ -125,308 +57,71 @@ export function TelaCadastro(props: TelaCadastroProps) {
 
   async function continuarComGoogle() {
     setErro('');
-
     if (!isGoogleSigninSupported || !GoogleSignin) {
-      Alert.alert(
-        'Google Sign-In',
-        'O login social com Google depende de binários nativos que não estão no Expo Go padrão. Cadastre-se com e-mail e senha para testar no Expo Go!'
-      );
-      setErro('Login Google requer Development Build. Use e-mail e senha no Expo Go.');
-      return;
+      return setErro('O login com Google só funciona no app instalado. Use e-mail e senha.');
     }
-
+    setCarregando(true);
     try {
-      setCarregando(true);
       await GoogleSignin.hasPlayServices();
-      const response = await GoogleSignin.signIn();
-
-      if (response.type !== 'success') {
-        setCarregando(false);
-        return;
-      }
-
+      const resposta = await GoogleSignin.signIn();
+      if (resposta.type !== 'success') return;
       const { idToken } = await GoogleSignin.getTokens();
-
-      if (!idToken) {
-        setErro('Não foi possível obter a credencial do Google!');
-        setCarregando(false);
-        return;
-      }
-
-      if (auth) {
-        const credential = GoogleAuthProvider.credential(idToken);
-        await signInWithCredential(auth, credential);
-      }
-
-      setSucesso('Autenticação Google realizada! Redirecionando...');
-      setTimeout(() => {
-        router.replace('/onboarding');
-      }, 1000);
-    } catch (error: any) {
+      if (!idToken) return setErro('Não foi possível obter a credencial do Google.');
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+      router.replace('/onboarding');
+    } catch {
       setErro('Não foi possível entrar com o Google.');
     } finally {
       setCarregando(false);
     }
   }
 
+  const limpar = (set: (v: string) => void) => (v: string) => {
+    set(v);
+    setErro('');
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View testID={props.testID ?? '95:12'} style={[styles.root, props.style]}>
-          {/* Header decorativo */}
-          <View testID="88:1063" style={styles.header} />
+    <Tela>
+      <Cabecalho titulo="Criar conta" subtitulo="Leva menos de um minuto." voltar={() => router.back()} />
 
-          {/* Título */}
-          <Text testID="88:1064" style={styles.fazerCadastro}>
-            Fazer cadastro
-          </Text>
+      <Cartao style={{ gap: 16 }}>
+        <Campo rotulo="Nome completo" value={nome} onChangeText={limpar(setNome)} autoCapitalize="words" editable={!carregando} />
+        <Campo
+          rotulo="E-mail"
+          value={email}
+          onChangeText={limpar(setEmail)}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          editable={!carregando}
+        />
+        <Campo
+          rotulo="Senha"
+          value={senha}
+          onChangeText={limpar(setSenha)}
+          secureTextEntry
+          autoCapitalize="none"
+          placeholder="Mínimo 8 caracteres, com letra e número"
+          editable={!carregando}
+        />
+        <Campo
+          rotulo="Confirmar senha"
+          value={confirmar}
+          onChangeText={limpar(setConfirmar)}
+          secureTextEntry
+          autoCapitalize="none"
+          editable={!carregando}
+          onSubmitEditing={criarConta}
+        />
+        {erro ? <Mensagem tom="erro" texto={erro} /> : null}
+        {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
+        <Botao titulo="Criar conta" onPress={criarConta} carregando={carregando} />
+      </Cartao>
 
-          {/* Formulário */}
-          <View testID="95:6" style={styles.cadastroBox}>
-            {/* Mensagem de Erro Formal */}
-            {erro !== '' && (
-              <View style={styles.erroBox}>
-                <Text style={styles.erroTexto}>{erro}</Text>
-              </View>
-            )}
-
-            {/* Mensagem de Sucesso Formal */}
-            {sucesso !== '' && (
-              <View style={styles.sucessoBox}>
-                <Text style={styles.sucessoTexto}>{sucesso}</Text>
-              </View>
-            )}
-
-            <View style={styles.field}>
-              <Text testID="88:1070" style={styles.label}>
-                Nome Completo
-              </Text>
-              <Input
-                placeholder="Digite seu nome completo"
-                editable={!carregando}
-                autoCapitalize='words'
-                value={nome}
-                onChangeText={(texto) => {
-                  setNome(texto);
-                  setErro('');
-                }}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text testID="88:1070" style={styles.label}>
-                Email
-              </Text>
-              <Input
-                placeholder="Digite seu email institucional ou pessoal"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                editable={!carregando}
-                value={email}
-                onChangeText={(texto) => {
-                  setEmail(texto);
-                  setErro('');
-                }}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text testID="88:1071" style={styles.label}>
-                Senha
-              </Text>
-              <Input
-                placeholder="Mínimo 8 caracteres (letras e números)"
-                secureTextEntry
-                autoCapitalize="none"
-                editable={!carregando}
-                value={senha}
-                onChangeText={(texto) => {
-                  setSenha(texto);
-                  setErro('');
-                }}
-              />
-            </View>
-
-            <View style={styles.field}>
-              <Text testID="88:1073" style={styles.label}>
-                Confirmar senha
-              </Text>
-              <Input
-                placeholder="Confirme sua senha"
-                secureTextEntry
-                autoCapitalize="none"
-                editable={!carregando}
-                value={confirmarSenha}
-                onChangeText={(texto) => {
-                  setConfirmarSenha(texto);
-                  setErro('');
-                }}
-              />
-            </View>
-
-            <Button
-              title={carregando ? 'Criando conta...' : 'Criar conta'}
-              onPress={criarConta}
-              disabled={carregando || sucesso !== ''}
-            />
-
-            {carregando && (
-              <ActivityIndicator
-                size="small"
-                color="#003366"
-                style={styles.loadingIndicator}
-              />
-            )}
-          </View>
-
-          {/* Separador */}
-          <View testID="95:11" style={styles.frame3}>
-            <Text testID="88:1074" style={styles.ou}>
-              OU
-            </Text>
-          </View>
-
-          {/* Google */}
-          <View testID="95:7" style={styles.googleContainer}>
-            <GoogleButton onPress={continuarComGoogle} />
-          </View>
-
-          {/* Login */}
-          <View style={styles.loginContainer}>
-            <Text testID="88:1065" style={styles.jaTemUmaConta}>
-              Já tem uma conta?
-            </Text>
-
-            <Pressable
-              disabled={carregando}
-              onPress={() => {
-                router.push('/login');
-              }}
-            >
-              <Text testID="88:1066" style={styles.fazerLogin}>
-                Fazer login
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      <View style={{ gap: 12 }}>
+        <Botao titulo="Continuar com Google" icone="logo-google" variante="secundario" onPress={continuarComGoogle} desabilitado={carregando} />
+        <Botao titulo="Já tenho conta" variante="texto" onPress={() => router.replace('/login')} />
+      </View>
+    </Tela>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FDFFFF',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    width: '100%',
-    alignItems: 'center',
-  },
-  root: {
-    width: '100%',
-    flexGrow: 1,
-    paddingBottom: 70,
-    alignItems: 'center',
-    gap: 18,
-    backgroundColor: '#FDFFFF',
-  },
-  header: {
-    width: '100%',
-    height: 70,
-    flexShrink: 0,
-    backgroundColor: '#9AD9EB',
-  },
-  fazerCadastro: {
-    color: '#003366',
-    fontSize: 24,
-    paddingTop: 16,
-    paddingBottom: 8,
-    fontWeight: '700',
-  },
-  cadastroBox: {
-    width: '85%',
-    maxWidth: 420,
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    flexDirection: 'column',
-    gap: 14,
-    backgroundColor: '#E5F4F8',
-    borderRadius: 8,
-  },
-  erroBox: {
-    backgroundColor: '#FFEBEE',
-    borderColor: '#E53935',
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 10,
-  },
-  erroTexto: {
-    color: '#C62828',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  sucessoBox: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#43A047',
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 10,
-  },
-  sucessoTexto: {
-    color: '#2E7D32',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  field: {
-    width: '100%',
-    gap: 6,
-  },
-  label: {
-    color: '#2A4B7C',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  loadingIndicator: {
-    marginTop: 4,
-  },
-  frame3: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  ou: {
-    color: '#41689E',
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  googleContainer: {
-    width: '85%',
-    maxWidth: 420,
-  },
-  loginContainer: {
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 8,
-  },
-  jaTemUmaConta: {
-    color: '#201D2A',
-    textAlign: 'center',
-    fontSize: 15,
-    fontWeight: '400',
-  },
-  fazerLogin: {
-    color: '#003366',
-    textAlign: 'center',
-    fontSize: 15,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
-  },
-});
-
-export default TelaCadastro;

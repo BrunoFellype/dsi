@@ -1,4 +1,4 @@
-import { TurboModuleRegistry, Platform, Alert } from 'react-native';
+import { TurboModuleRegistry, Platform } from 'react-native';
 
 let GoogleSignin: any = null;
 let isGoogleSigninSupported = false;
@@ -8,6 +8,7 @@ try {
     // Verifica defensivamente se o módulo nativo existe antes de carregar
     const hasNative = !!TurboModuleRegistry.get('RNGoogleSignin');
     if (hasNative) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const mod = require('@react-native-google-signin/google-signin');
       GoogleSignin = mod.GoogleSignin;
       isGoogleSigninSupported = true;
@@ -20,7 +21,7 @@ try {
       }
     }
   }
-} catch (e) {
+} catch {
   isGoogleSigninSupported = false;
   GoogleSignin = null;
 }

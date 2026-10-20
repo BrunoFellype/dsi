@@ -1,9 +1,9 @@
 // Import the functions you need from the SDKs you need
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { initializeApp } from "firebase/app";
-import { getAuth } from 'firebase/auth';
+import { getAuth, initializeAuth, type Auth, type Persistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -18,6 +18,23 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+/**
+ * No celular o login é guardado no AsyncStorage, para continuar logado ao reabrir o app.
+ * `getReactNativePersistence` só existe na versão React Native do Firebase (não está nos tipos),
+ * por isso é lido em tempo de execução. Se o Auth já tiver sido criado (recarga rápida), reaproveita.
+ */
+function criarAuth(): Auth {
+  if (Platform.OS === 'web') return getAuth(app);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getReactNativePersistence } = require('firebase/auth') as {
+      getReactNativePersistence: (armazenamento: typeof AsyncStorage) => Persistence;
+    };
+    return initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
+  } catch {
+    return getAuth(app);
+  }
+}
 
-export const auth = getAuth(app);
+export const auth = criarAuth();
 export const db = getFirestore(app);
