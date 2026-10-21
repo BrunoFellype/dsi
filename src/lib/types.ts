@@ -16,20 +16,40 @@ export interface Aviso {
   prazoSemHora?: boolean;
   /** O estudante disse que o horário não foi informado. */
   horaNaoInformada?: boolean;
+  categoria?: TipoAviso;
+  /** Usuário responsável pela publicação (professor ou autor). */
+  autor?: string;
 }
+
+export type MensagemImportada = Aviso;
 
 export interface Atividade {
   id: string;
   titulo: string;
   disciplina?: string;
+  /** Identificador da disciplina associada (ex.: Classroom ou SIGAA). */
+  disciplinaId?: string;
   data: string;
   fonte: FonteId;
-  tipo: 'tarefa' | 'avaliacao' | 'questionario';
+  tipo: 'tarefa' | 'avaliacao' | 'questionario' | 'prova';
   concluida: boolean;
   /** Falta confirmar o horário (a data veio sem hora). */
   semHora?: boolean;
   /** O horário não foi informado (escolha do estudante). */
   horaNaoInformada?: boolean;
+  descricao?: string;
+  nota?: number;
+}
+
+/** Disciplina unificada oriunda do SIGAA ou do Google Classroom. */
+export interface Disciplina {
+  id: string;
+  codigo: string;
+  nome: string;
+  media?: number;
+  faltas?: number;
+  cargaHoraria?: number;
+  fonte?: FonteId;
 }
 
 export interface IndiceAcademico {
@@ -89,4 +109,18 @@ export interface Grupo {
   id: string;
   rotulo: string;
   avisos: Aviso[];
+}
+
+/** Estado da conexão e sincronização com o Google Classroom. */
+export interface StatusClassroom {
+  /** Indica se há uma conta Google vinculada com acesso autorizado ao Classroom. */
+  conectado: boolean;
+  /** Indica se há uma sincronização em andamento via Classroom API. */
+  sincronizando: boolean;
+  /** E-mail da conta Google conectada. */
+  email?: string;
+  /** Timestamp ISO da última sincronização bem-sucedida. */
+  ultimaSincronizacao?: string;
+  /** Mensagem de erro caso a última tentativa de sincronização tenha falhado. */
+  erro?: string | null;
 }

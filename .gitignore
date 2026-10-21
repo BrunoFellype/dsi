@@ -30,9 +30,10 @@ yarn-error.*
 
 # Environment
 .env
+.env*.local
 .env.*
 !.env.example
-
+src/services/firebase.ts
 # TypeScript
 *.tsbuildinfo
 

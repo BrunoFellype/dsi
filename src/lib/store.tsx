@@ -1,28 +1,48 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { AppState } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
-
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { auth } from '../services/firebase';
+import { obterOuRenovarTokenClassroom } from '../services/googleSignin';
 import { buscarResumoSigaa, PONTE_PADRAO } from './api';
-import { apagarCredenciais, cofreDisponivel, lerCredenciais, salvarCredenciais } from './cofre';
-import { agendarLembretes, cancelarLembretes, lembretesDisponiveis, pedirPermissaoLembretes } from './lembretes';
-import { calcularNotificacoes } from './lembretesLogica';
-import { precisaAtualizar } from './sync';
-import { buscarResumoNativo, sigaaNativoDisponivel } from './sigaaNativo';
+import { buscarDadosGoogleClassroom } from './classroomApi';
+import {
+  apagarCredenciais,
+  apagarTokenClassroom,
+  cofreDisponivel,
+  lerCredenciais,
+  lerTokenClassroom,
+  salvarCredenciais,
+} from './cofre';
+import {
+  desfazerCorrecaoDoAviso,
+  editarAvisoNaLista,
+  removerAvisoEComCorrecoes,
+  removerRegistroDoDia,
+  type EdicaoAviso,
+} from './crud';
 import { chaveDia, diasAte } from './datas';
 import { avisosDemo, diarioDemo, resumoDemo } from './demo';
+import { aplicarHorarios, chaveHorario, lerHora, NAO_INFORMADO, pendentesDeHorario, semHoraNoSigaa } from './horarios';
+import { agendarLembretes, cancelarLembretes, lembretesDisponiveis, pedirPermissaoLembretes } from './lembretes';
+import { calcularNotificacoes } from './lembretesLogica';
 import { agruparAvisos, agruparRepetidos, type ResultadoAgrupamento } from './ml';
 import { criarAvisos, detectarDisciplina } from './parse';
-import { desfazerCorrecaoDoAviso, editarAvisoNaLista, removerAvisoEComCorrecoes, removerRegistroDoDia, type EdicaoAviso } from './crud';
-import { aplicarHorarios, chaveHorario, lerHora, NAO_INFORMADO, pendentesDeHorario, semHoraNoSigaa } from './horarios';
-import type { Atividade, Aviso, FonteId, RegistroDiario, ResumoSigaa } from './types';
+import { buscarResumoNativo, sigaaNativoDisponivel } from './sigaaNativo';
+import { precisaAtualizar } from './sync';
+import type { Atividade, Aviso, Disciplina, FonteId, RegistroDiario, ResumoSigaa, StatusClassroom } from './types';
 
 export type Sessao = 'carregando' | 'logado' | 'demo' | 'anonimo';
 
 interface Persistido {
   avisos: Aviso[];
   manuais: Atividade[];
+  /** Atividades sincronizadas da Google Classroom API. */
+  classroomAtividades: Atividade[];
+  /** Disciplinas e turmas ativas do Google Classroom. */
+  classroomDisciplinas: Disciplina[];
+  /** Status da conexão e sincronização com o Google Classroom. */
+  statusClassroom: StatusClassroom;
   sigaa: ResumoSigaa | null;
   sigaaEm: string | null;
   concluidas: Record<string, true>;
@@ -44,6 +64,13 @@ interface Persistido {
 const VAZIO: Persistido = {
   avisos: [],
   manuais: [],
+  classroomAtividades: [],
+  classroomDisciplinas: [],
+  statusClassroom: {
+    conectado: false,
+    sincronizando: false,
+    erro: null,
+  },
   sigaa: null,
   sigaaEm: null,
   concluidas: {},
@@ -61,6 +88,7 @@ interface Contexto extends Persistido {
   sessao: Sessao;
   nome: string;
   atividades: Atividade[];
+  disciplinas: Disciplina[];
   agrupamento: ResultadoAgrupamento;
   repetidos: Record<string, Aviso[]>;
   entrarDemo: () => void;
@@ -89,6 +117,10 @@ interface Contexto extends Persistido {
   /** Liga ou desliga os lembretes. Devolve false se o usuário negou a permissão. */
   alternarLembretes: (ligar: boolean) => Promise<boolean>;
   alternarResumoDiario: (ligar: boolean) => Promise<boolean>;
+  /** Sincroniza tarefas, avisos e notas do Google Classroom via Classroom API. */
+  sincronizarClassroom: (tokenDireto?: string, emailDireto?: string) => Promise<void>;
+  /** Desconecta a conta do Google Classroom e remove os dados sincronizados. */
+  desconectarClassroom: () => Promise<void>;
 }
 
 const AstraContext = createContext<Contexto | null>(null);
@@ -119,9 +151,11 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
   const modoDemo = useRef(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [erroSync, setErroSync] = useState('');
+
   // Referência sempre atual para funções que não podem depender do estado (evita recriá-las)
   const dadosRef = useRef(dados);
   const chaveRef = useRef<string | null>(null);
+
   useEffect(() => {
     dadosRef.current = dados;
   }, [dados]);
@@ -172,6 +206,7 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
   }, [dados, chave, sessao]);
 
   const entrarDemo = useCallback(() => {
+    // O modo demonstração já define os próprios dados e nunca lê nem grava no aparelho
     modoDemo.current = true;
     carregado.current = true;
     setNome('Estudante');
@@ -238,6 +273,109 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     setErroSync('');
     setDados((d) => ({ ...d, sigaa: null, sigaaEm: null, lembrarSenha: false }));
   }, []);
+
+  /**
+   * Sincronização com o Google Classroom:
+   * Obtém ou renova o token OAuth, consulta cursos, tarefas e mural na API,
+   * e mescla com os dados locais marcando entregas já concluídas.
+   */
+  const sincronizarClassroom = useCallback(
+    async (tokenDireto?: string, emailDireto?: string) => {
+      setDados((d) => ({
+        ...d,
+        statusClassroom: { ...d.statusClassroom, sincronizando: true, erro: null },
+      }));
+
+      try {
+        let token = tokenDireto;
+        let email = emailDireto;
+
+        if (!token) {
+          const sessaoSalva = await lerTokenClassroom();
+          if (sessaoSalva?.accessToken) {
+            token = sessaoSalva.accessToken;
+            email = sessaoSalva.email;
+          } else {
+            const renovado = await obterOuRenovarTokenClassroom();
+            token = renovado.accessToken;
+            email = renovado.email;
+          }
+        }
+
+        const pacote = await buscarDadosGoogleClassroom(token);
+
+        setDados((d) => {
+          const outrosAvisos = d.avisos.filter((a) => a.fonte !== 'classroom');
+          const concluidas = { ...d.concluidas };
+
+          pacote.atividades.forEach((a) => {
+            if (a.concluida) concluidas[a.id] = true;
+          });
+
+          return {
+            ...d,
+            avisos: [...pacote.avisos, ...outrosAvisos],
+            classroomAtividades: pacote.atividades,
+            classroomDisciplinas: pacote.disciplinas,
+            concluidas,
+            statusClassroom: {
+              conectado: true,
+              sincronizando: false,
+              email: email || d.statusClassroom?.email,
+              ultimaSincronizacao: pacote.sincronizadoEm,
+              erro: null,
+            },
+          };
+        });
+      } catch (err: any) {
+        if (err?.message === 'TOKEN_EXPIRADO_OU_SEM_PERMISSAO') {
+          await apagarTokenClassroom();
+        }
+        setDados((d) => ({
+          ...d,
+          statusClassroom: {
+            ...d.statusClassroom,
+            conectado: false,
+            sincronizando: false,
+            erro:
+              err?.message === 'TOKEN_EXPIRADO_OU_SEM_PERMISSAO'
+                ? 'Sessão do Google Classroom expirou. Conecte novamente.'
+                : err?.message || 'Falha ao sincronizar Google Classroom.',
+          },
+        }));
+      }
+    },
+    []
+  );
+
+  /** Desconecta a conta do Google Classroom, remove o token do cofre e limpa os dados associados. */
+  const desconectarClassroom = useCallback(async () => {
+    await apagarTokenClassroom();
+    setDados((d) => ({
+      ...d,
+      avisos: d.avisos.filter((a) => a.fonte !== 'classroom'),
+      classroomAtividades: [],
+      classroomDisciplinas: [],
+      statusClassroom: {
+        conectado: false,
+        sincronizando: false,
+        erro: null,
+      },
+    }));
+  }, []);
+
+  // Tenta sincronizar automaticamente o Google Classroom ao abrir o app se houver token salvo
+  useEffect(() => {
+    let ativo = true;
+    lerTokenClassroom().then((sessaoClass) => {
+      if (ativo && sessaoClass?.accessToken && !dadosRef.current.statusClassroom?.conectado) {
+        void sincronizarClassroom(sessaoClass.accessToken, sessaoClass.email);
+      }
+    });
+    return () => {
+      ativo = false;
+    };
+  }, [sincronizarClassroom]);
 
   const importarMensagens = useCallback((texto: string, fonte: FonteId) => {
     const disciplinas = (dadosRef.current.sigaa?.disciplinas ?? []).map((x) => x.titulo);
@@ -365,8 +503,11 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
 
   const atividades = useMemo(() => {
     const doSigaa = resumoParaAtividades(dados.sigaa);
+    // Atividades importadas da API do Google Classroom
+    const doClassroom: Atividade[] = dados.classroomAtividades ?? [];
     // Avisos com prazo: uma atividade por grupo de mensagens repetidas
-    const comPrazo = avisosOrdenados.filter((a) => a.prazo);
+    const comPrazo = avisosOrdenados.filter((a) => a.prazo && a.fonte !== 'classroom');
+
     const dosAvisos: Atividade[] = agruparRepetidos(comPrazo)
       .map((g) => g[0])
       .filter(
@@ -386,12 +527,26 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
         semHora: (a.prazoSemHora && !a.horaNaoInformada) || undefined,
         horaNaoInformada: a.horaNaoInformada,
       }));
-    const todas = [...doSigaa, ...dosAvisos, ...dados.manuais].map((a) => ({
+
+    const todas = [...doSigaa, ...doClassroom, ...dosAvisos, ...dados.manuais].map((a) => ({
       ...a,
       concluida: a.concluida || Boolean(dados.concluidas[a.id]),
     }));
+
     return aplicarHorarios(todas, dados.horarios).sort((a, b) => a.data.localeCompare(b.data));
-  }, [dados.sigaa, dados.manuais, dados.concluidas, dados.horarios, avisosOrdenados]);
+  }, [dados.sigaa, dados.classroomAtividades, dados.manuais, dados.concluidas, dados.horarios, avisosOrdenados]);
+
+  const disciplinas = useMemo(() => {
+    const doSigaa: Disciplina[] = (dados.sigaa?.disciplinas ?? []).map((ds) => ({
+      id: `sigaa-${ds.codigo}`,
+      codigo: ds.codigo,
+      nome: ds.titulo,
+      fonte: 'sigaa',
+    }));
+    // Disciplinas e turmas ativas vindas do Google Classroom
+    const doClassroom: Disciplina[] = dados.classroomDisciplinas ?? [];
+    return [...doSigaa, ...doClassroom];
+  }, [dados.sigaa, dados.classroomDisciplinas]);
 
   const pendentesHorario = useMemo(() => pendentesDeHorario(atividades), [atividades]);
 
@@ -404,6 +559,7 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     });
     return true;
   }, []);
+
   const alternarLembretes = useCallback((ligar: boolean) => alternarNotificacao('lembretes', ligar), [alternarNotificacao]);
   const alternarResumoDiario = useCallback((ligar: boolean) => alternarNotificacao('resumoDiario', ligar), [alternarNotificacao]);
 
@@ -458,6 +614,7 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     sessao,
     nome,
     atividades,
+    disciplinas,
     agrupamento,
     repetidos,
     entrarDemo,
@@ -483,6 +640,9 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     alternarResumoDiario,
     sincronizando,
     erroSync,
+    statusClassroom: dados.statusClassroom ?? VAZIO.statusClassroom,
+    sincronizarClassroom,
+    desconectarClassroom,
   };
 
   return <AstraContext.Provider value={valor}>{children}</AstraContext.Provider>;
@@ -493,3 +653,5 @@ export function useAstra(): Contexto {
   if (!ctx) throw new Error('useAstra precisa estar dentro de <AstraProvider>.');
   return ctx;
 }
+
+export const useAstraStore = useAstra;

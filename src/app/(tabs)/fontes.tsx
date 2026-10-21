@@ -1,7 +1,3 @@
-import React, { useState } from 'react';
-import { Switch, View } from 'react-native';
-import * as Clipboard from 'expo-clipboard';
-
 import {
   Botao,
   Cabecalho,
@@ -16,18 +12,39 @@ import {
   Tela,
   Txt,
 } from '@/components/ui';
-import { haQuanto } from '@/lib/datas';
-import { useAstra } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
 import { cofreDisponivel } from '@/lib/cofre';
+import { haQuanto } from '@/lib/datas';
 import { sigaaNativoDisponivel } from '@/lib/sigaaNativo';
+import { useAstra } from '@/lib/store';
 import type { FonteId } from '@/lib/types';
+import * as Clipboard from 'expo-clipboard';
+import { useState } from 'react';
+import { Switch, View } from 'react-native';
 
 const FONTES_MENSAGEM: FonteId[] = ['whatsapp', 'telegram', 'classroom', 'discord', 'email'];
 
 export default function Fontes() {
-  const { sessao, sigaa, sigaaEm, lembrarSenha, sincronizando, erroSync, conectarSigaa, desconectarSigaa, avisos, importarMensagens, removerAvisosDaFonte, ponte, definirPonte, modoSigaa, definirModoSigaa } =
-    useAstra();
+  const {
+    sessao,
+    sigaa,
+    sigaaEm,
+    lembrarSenha,
+    sincronizando,
+    erroSync,
+    conectarSigaa,
+    desconectarSigaa,
+    avisos,
+    importarMensagens,
+    removerAvisosDaFonte,
+    ponte,
+    definirPonte,
+    modoSigaa,
+    definirModoSigaa,
+    statusClassroom,
+    sincronizarClassroom,
+    desconectarClassroom,
+  } = useAstra();
 
   return (
     <Tela>
@@ -49,6 +66,56 @@ export default function Fontes() {
           onConectar={conectarSigaa}
           onDesconectar={desconectarSigaa}
         />
+      </Secao>
+
+      {/* Integração com o Google Classroom: conexão via OAuth, sincronização de turmas e desconexão */}
+      <Secao titulo="GOOGLE CLASSROOM">
+        <Cartao style={{ gap: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Icone nome="book-outline" tamanho={22} cor="primary" />
+            <View style={{ flex: 1 }}>
+              <Txt v="subtitulo">Google Classroom</Txt>
+              <Txt v="legenda" cor="textSecondary">
+                {statusClassroom.conectado && statusClassroom.email
+                  ? `Vinculado a ${statusClassroom.email}`
+                  : 'Turmas, prazos, avisos e materiais via conta Google'}
+              </Txt>
+            </View>
+            <Selo
+              rotulo={statusClassroom.conectado ? 'Conectado' : 'Desconectado'}
+              tom={statusClassroom.conectado ? 'sucesso' : 'neutro'}
+            />
+          </View>
+
+          {statusClassroom.erro ? <Mensagem tom="erro" texto={statusClassroom.erro} /> : null}
+
+          {statusClassroom.conectado && statusClassroom.ultimaSincronizacao ? (
+            <Txt v="legenda" cor="textMuted">
+              Atualizado {haQuanto(statusClassroom.ultimaSincronizacao)}
+            </Txt>
+          ) : null}
+
+          <Botao
+            titulo={
+              statusClassroom.sincronizando
+                ? 'Sincronizando...'
+                : statusClassroom.conectado
+                ? 'Sincronizar agora'
+                : 'Conectar com Google'
+            }
+            icone="sync-outline"
+            onPress={() => void sincronizarClassroom()}
+            carregando={statusClassroom.sincronizando}
+          />
+
+          {statusClassroom.conectado ? (
+            <Botao
+              titulo="Desconectar Classroom"
+              variante="perigo"
+              onPress={() => void desconectarClassroom()}
+            />
+          ) : null}
+        </Cartao>
       </Secao>
 
       <Secao titulo="Mensagens">
@@ -122,7 +189,7 @@ function CartaoSigaa({
           <Txt v="subtitulo">SIGAA UFRPE</Txt>
           <Txt v="legenda" cor="textSecondary">
             {conectado
-              ? `${curso ?? 'Conectado'}${sigaaEm ? ` · atualizado ${haQuanto(sigaaEm)}` : ''}`
+              ? `${curso ?? 'Conectado'}${sigaaEm ? ` • atualizado ${haQuanto(sigaaEm)}` : ''}`
               : 'Atividades, notas, faltas e índices'}
           </Txt>
         </View>
@@ -157,6 +224,7 @@ function CartaoSigaa({
               ? 'A senha vai direto do seu celular para o SIGAA e não fica salva.'
               : 'A senha passa pela ponte só para ler seus dados e não fica salva.'}
           </Txt>
+
           {cofreDisponivel ? (
             <View style={{ gap: 6 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -171,33 +239,38 @@ function CartaoSigaa({
                 />
               </View>
               <Txt v="legenda" cor="textMuted">
-                Guarda usuário e senha no cofre seguro do celular, criptografados, para atualizar o SIGAA sozinho a cada
-                6 horas. Desligue e conecte de novo, ou desconecte, para apagar.
+                Guarda usuário e senha no cofre seguro do celular para atualizar o SIGAA sozinho a cada 6 horas.
               </Txt>
             </View>
           ) : null}
+
           {lembrada ? (
             <Txt v="legenda" cor={erroSync ? 'danger' : 'success'} style={{ fontWeight: '600' }}>
               {sincronizando
                 ? 'Atualizando o SIGAA...'
                 : erroSync
-                  ? `Atualização automática falhou: ${erroSync}`
-                  : 'Atualização automática ligada.'}
+                ? `Atualização automática falhou: ${erroSync}`
+                : 'Atualização automática ligada.'}
             </Txt>
           ) : null}
+
           {erro ? <Mensagem tom="erro" texto={erro} /> : null}
+
           <Botao
             titulo={conectado ? 'Atualizar dados' : 'Conectar'}
             icone="sync-outline"
             onPress={conectar}
             carregando={carregando}
           />
+
           {conectado ? <Botao titulo="Desconectar" variante="perigo" onPress={onDesconectar} /> : null}
+
           <Botao
             titulo={avancado ? 'Esconder avançado' : 'Avançado'}
             variante="texto"
             onPress={() => setAvancado((v) => !v)}
           />
+
           {avancado ? (
             <View style={{ gap: 12 }}>
               {sigaaNativoDisponivel ? (

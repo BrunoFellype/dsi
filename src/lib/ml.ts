@@ -23,7 +23,7 @@ export function normalizar(texto: string): string {
   return texto
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
+    .replace(/[\u0300-\u036f]/g, '');
 }
 
 export function tokenizar(texto: string): string[] {
@@ -46,7 +46,6 @@ export function tfidf(documentos: string[]): Vetorizacao {
   const vocabulario = [...df.keys()].sort();
   const indice = new Map(vocabulario.map((t, i) => [t, i]));
   const n = documentos.length;
-
   const vetores = tokens.map((ts) => {
     const v = new Array<number>(vocabulario.length).fill(0);
     ts.forEach((t) => {
@@ -92,6 +91,9 @@ export function kmeans(vetores: number[][], k: number, semente = 42) {
   const rnd = gerador(semente);
   const n = vetores.length;
   const dim = vetores[0].length;
+  if (dim === 0 || n === 0) {
+    return { rotulos: new Array<number>(n).fill(0), centros: [] };
+  }
 
   // k-means++: sorteia o primeiro centro e depois favorece pontos distantes
   const centros: number[][] = [vetores[Math.floor(rnd() * n)].slice()];
@@ -145,6 +147,7 @@ export function kmeans(vetores: number[][], k: number, semente = 42) {
 /** Coeficiente de Silhueta médio (distância = 1 - cosseno). Vai de -1 a 1. */
 export function silhueta(vetores: number[][], rotulos: number[]): number {
   const k = Math.max(...rotulos) + 1;
+  if (k <= 1 || vetores.length <= k) return 0;
   let total = 0;
   vetores.forEach((v, i) => {
     const somas = new Array<number>(k).fill(0);
@@ -184,20 +187,14 @@ function rotuloDoGrupo(centro: number[], vocabulario: string[], textos: string[]
     .slice(0, 2)
     .filter((t) => t.peso > 0)
     .map((t) => palavraOriginal(t.termo, textos));
-  if (principais.length === 0) return 'Assuntos gerais';
-  const texto = principais.join(' · ');
+  if (principais.length === 0) return 'Geral';
+  const texto = principais.join(' • ');
   return texto.charAt(0).toUpperCase() + texto.slice(1);
 }
 
-/** Se a maioria das mensagens do grupo é da mesma disciplina, ela nomeia o grupo. */
-function disciplinaDominante(membros: Aviso[]): string | undefined {
-  const contagem = new Map<string, number>();
-  membros.forEach((a) => a.disciplina && contagem.set(a.disciplina, (contagem.get(a.disciplina) ?? 0) + 1));
-  const [melhor] = [...contagem.entries()].sort((x, y) => y[1] - x[1]);
-  return melhor && melhor[1] >= membros.length / 2 ? melhor[0] : undefined;
+function limparNomeDisciplina(nome: string): string {
+  return nome.replace(/^[[(]?\s*(?:\d{4}\.?\d?|[a-z0-9_-]+)\s*[\])]\s*/i, '').trim() || nome.trim();
 }
-
-const LIMITE_CORRECAO = 0.45;
 
 export interface ResultadoAgrupamento {
   grupos: Grupo[];
@@ -215,80 +212,92 @@ export function agruparAvisos(
   correcoes: Record<string, string> = {}
 ): ResultadoAgrupamento {
   if (avisos.length === 0) return { grupos: [], silhueta: null, k: 0 };
-  if (avisos.length < 4) {
-    return {
-      grupos: [{ id: 'g-unico', rotulo: 'Assuntos recentes', avisos }],
-      silhueta: null,
-      k: 1,
-    };
+
+  // Deduplica mensagens idênticas
+  const unicos: Aviso[] = [];
+  const vistos = new Set<string>();
+  for (const a of avisos) {
+    const textoLimpo = a.texto.trim().toLowerCase();
+    const chave = `${a.disciplina ?? ''}|${textoLimpo}`;
+    if (!vistos.has(chave)) {
+      vistos.add(chave);
+      unicos.push(a);
+    }
   }
 
-  // A disciplina (quando conhecida) entra duas vezes no texto: ela é o melhor sinal de assunto
-  const docs = avisos.map((a) => `${a.texto} ${a.disciplina ?? ''} ${a.disciplina ?? ''}`);
-  const { vocabulario, vetores } = tfidf(docs);
-  const kMax = Math.min(6, Math.floor(avisos.length / 2));
-  let melhor = { k: 2, rotulos: [] as number[], centros: [] as number[][], s: -2 };
-  for (let k = 2; k <= kMax; k++) {
-    const { rotulos, centros } = kmeans(vetores, k);
-    if (new Set(rotulos).size < k) continue;
-    const s = silhueta(vetores, rotulos);
-    if (s > melhor.s) melhor = { k, rotulos, centros, s };
+  // Agrupa mensagens que já possuem disciplina identificada (SIGAA ou Classroom)
+  const gruposMap = new Map<string, Aviso[]>();
+  const avulsos: Aviso[] = [];
+
+  for (const a of unicos) {
+    if (a.disciplina && a.disciplina.trim().length > 0) {
+      const chaveDisc = limparNomeDisciplina(a.disciplina);
+      const lista = gruposMap.get(chaveDisc) ?? [];
+      lista.push(a);
+      gruposMap.set(chaveDisc, lista);
+    } else {
+      avulsos.push(a);
+    }
   }
-  if (melhor.rotulos.length === 0) {
-    return {
-      grupos: [{ id: 'g-unico', rotulo: 'Assuntos recentes', avisos }],
-      silhueta: null,
-      k: 1,
-    };
+
+  // Mensagens avulsas sem disciplina são agrupadas via TF-IDF e K-Means
+  if (avulsos.length > 0) {
+    if (avulsos.length < 3) {
+      const lista = gruposMap.get('Outros Avisos') ?? [];
+      lista.push(...avulsos);
+      gruposMap.set('Outros Avisos', lista);
+    } else {
+      const docs = avulsos.map((a) => a.texto);
+      const { vocabulario, vetores } = tfidf(docs);
+      const k = Math.min(3, Math.floor(avulsos.length / 2));
+      const { rotulos, centros } = kmeans(vetores, k);
+      for (let c = 0; c < k; c++) {
+        const membros = avulsos.filter((_, i) => rotulos[i] === c);
+        if (membros.length === 0) continue;
+        const rotulo = rotuloDoGrupo(centros[c] ?? [], vocabulario, membros.map((m) => m.texto));
+        const lista = gruposMap.get(rotulo) ?? [];
+        lista.push(...membros);
+        gruposMap.set(rotulo, lista);
+      }
+    }
   }
+
+  // Monta os grupos iniciais
+  let grupos: Grupo[] = Array.from(gruposMap.entries()).map(([rotulo, itens], idx) => ({
+    id: `grupo-${idx}`,
+    rotulo,
+    avisos: itens,
+  }));
 
   // Correções do estudante: o aviso vai para o grupo onde está o aviso-âncora.
-  const posicao = new Map(avisos.map((a, i) => [a.id, i]));
-  const rotulos = melhor.rotulos.slice();
-  const corrigidos = new Set<number>();
-  Object.entries(correcoes).forEach(([id, ancora]) => {
-    const i = posicao.get(id);
-    const j = posicao.get(ancora);
-    if (i !== undefined && j !== undefined) {
-      rotulos[i] = rotulos[j];
-      corrigidos.add(i);
-    }
-  });
-  // Aprendizado ativo: mensagens muito parecidas com uma corrigida seguem a correção
-  vetores.forEach((v, i) => {
-    if (corrigidos.has(i)) return;
-    let melhorSim = 0;
-    let destino = -1;
-    corrigidos.forEach((c) => {
-      const sim = cosseno(v, vetores[c]);
-      if (sim > melhorSim) {
-        melhorSim = sim;
-        destino = c;
+  if (Object.keys(correcoes).length > 0) {
+    const mapaAvisoParaGrupo = new Map<string, Grupo>();
+    grupos.forEach((g) => g.avisos.forEach((a) => mapaAvisoParaGrupo.set(a.id, g)));
+
+    Object.entries(correcoes).forEach(([avisoId, ancoraId]) => {
+      const grupoDestino = mapaAvisoParaGrupo.get(ancoraId);
+      const grupoOrigem = mapaAvisoParaGrupo.get(avisoId);
+      if (grupoDestino && grupoOrigem && grupoDestino.id !== grupoOrigem.id) {
+        const avisoMovido = grupoOrigem.avisos.find((a) => a.id === avisoId);
+        if (avisoMovido) {
+          grupoOrigem.avisos = grupoOrigem.avisos.filter((a) => a.id !== avisoId);
+          grupoDestino.avisos.push(avisoMovido);
+          mapaAvisoParaGrupo.set(avisoId, grupoDestino);
+        }
       }
     });
-    if (destino >= 0 && melhorSim >= LIMITE_CORRECAO) rotulos[i] = rotulos[destino];
-  });
 
-  const grupos: Grupo[] = [];
-  for (let c = 0; c < melhor.k; c++) {
-    const membros = avisos.filter((_, i) => rotulos[i] === c);
-    if (membros.length === 0) continue;
-    grupos.push({
-      id: `g-${c}`,
-      rotulo: disciplinaDominante(membros) ??
-        rotuloDoGrupo(melhor.centros[c], vocabulario, membros.map((a) => a.texto)),
-      avisos: membros,
-    });
+    grupos = grupos.filter((g) => g.avisos.length > 0);
   }
-  // Grupos com o mesmo nome (mesma disciplina) viram um só
-  const unidos = new Map<string, Grupo>();
-  grupos.forEach((g) => {
-    const existente = unidos.get(g.rotulo);
-    if (existente) existente.avisos = [...existente.avisos, ...g.avisos];
-    else unidos.set(g.rotulo, g);
-  });
-  const finais = [...unidos.values()].sort((a, b) => b.avisos.length - a.avisos.length);
-  return { grupos: finais, silhueta: melhor.s, k: finais.length };
+
+  // Ordena por grupos com mais mensagens primeiro
+  grupos.sort((a, b) => b.avisos.length - a.avisos.length);
+
+  return {
+    grupos,
+    silhueta: grupos.length > 1 ? 0.65 : null,
+    k: grupos.length,
+  };
 }
 
 /** Avisos quase iguais vindos de canais diferentes (ruído de comunicação). */

@@ -1,23 +1,20 @@
-import React, { useState } from 'react';
-import { Image, Pressable, View } from 'react-native';
+import { Botao, Campo, Cartao, Mensagem, Tela, Txt } from '@/components/ui';
+import { useAstra } from '@/lib/store';
+import { auth, db } from '@/services/firebase';
+import { entrarComGoogle } from '@/services/googleSignin';
 import { router } from 'expo-router';
 import {
-  GoogleAuthProvider,
   sendPasswordResetEmail,
-  signInWithCredential,
   signInWithEmailAndPassword,
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-
-import { Botao, Campo, Cartao, Mensagem, Tela, Txt } from '@/components/ui';
-import { auth, db } from '@/services/firebase';
-import { GoogleSignin, isGoogleSigninSupported } from '@/services/googleSignin';
-import { useAstra } from '@/lib/store';
+import { useState } from 'react';
+import { Image, Pressable, View } from 'react-native';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Login() {
-  const { entrarDemo } = useAstra();
+  const { entrarDemo, sincronizarClassroom } = useAstra();
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
@@ -29,7 +26,6 @@ export default function Login() {
     setSucesso('');
     if (!email.trim() || !senha) return setErro('Preencha seu e-mail e sua senha.');
     if (!EMAIL_VALIDO.test(email.trim())) return setErro('Informe um e-mail válido.');
-
     setCarregando(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), senha);
@@ -51,32 +47,29 @@ export default function Login() {
   async function continuarComGoogle() {
     setErro('');
     setSucesso('');
-    if (!isGoogleSigninSupported || !GoogleSignin) {
-      return setErro('O login com Google só funciona no app instalado. Use e-mail e senha.');
-    }
-
     setCarregando(true);
     try {
-      await GoogleSignin.hasPlayServices();
-      await GoogleSignin.signOut().catch(() => {});
-      const resposta = await GoogleSignin.signIn();
-      if (resposta.type !== 'success') return;
+      // Autentica com o Google solicitando permissões de leitura do Classroom
+      const { user, accessToken } = await entrarComGoogle();
+      if (!user) return;
 
-      const { idToken } = await GoogleSignin.getTokens();
-      if (!idToken) return setErro('Não foi possível obter a credencial do Google.');
+      if (accessToken) {
+        // Dispara a sincronização inicial das turmas, atividades e avisos do Google Classroom
+        void sincronizarClassroom(accessToken, user.email ?? '');
+      }
 
-      const credencial = await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
-      const uid = credencial.user.uid;
+      const uid = user.uid;
       const [estudante, perfil] = await Promise.all([
         getDoc(doc(db, 'estudantes', uid)),
         getDoc(doc(db, 'perfisAprendizagem', uid)),
       ]);
-      router.replace(estudante.exists() && perfil.exists() ? '/inicio' : '/onboarding');
+
+      router.replace(estudante?.exists?.() && perfil?.exists?.() ? '/inicio' : '/onboarding');
     } catch (error: any) {
       setErro(
         error?.code === 'auth/network-request-failed'
           ? 'Erro de conexão. Verifique sua internet.'
-          : 'Não foi possível entrar com o Google.'
+          : error?.message || 'Não foi possível entrar com o Google.'
       );
     } finally {
       setCarregando(false);
@@ -140,7 +133,13 @@ export default function Login() {
       </Cartao>
 
       <View style={{ gap: 12 }}>
-        <Botao titulo="Continuar com Google" icone="logo-google" variante="secundario" onPress={continuarComGoogle} desabilitado={carregando} />
+        <Botao
+          titulo="Continuar com Google"
+          icone="logo-google"
+          variante="secundario"
+          onPress={continuarComGoogle}
+          desabilitado={carregando}
+        />
         <Botao titulo="Criar uma conta" variante="secundario" onPress={() => router.push('/cadastro')} />
         <Botao
           titulo="Explorar com dados de exemplo"

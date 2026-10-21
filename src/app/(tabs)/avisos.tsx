@@ -1,14 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
-import { router } from 'expo-router';
-
 import { NAO_INFORMADO_TEXTO, Seletor } from '@/components/seletor';
-import { Botao, Cabecalho, Campo, Cartao, Chip, Icone, Mensagem, Selo, SeloFonte, Tela, Txt, Vazio, FONTES, type IconName } from '@/components/ui';
+import { Botao, Cabecalho, Campo, Cartao, Chip, FONTES, Icone, Mensagem, Selo, SeloFonte, Tela, Txt, Vazio, type IconName } from '@/components/ui';
+import type { EdicaoAviso } from '@/lib/crud';
 import { haQuanto, lerDataHora } from '@/lib/datas';
 import { HORARIOS_SUGERIDOS, textoPrazo } from '@/lib/horarios';
 import { useAstra } from '@/lib/store';
-import type { EdicaoAviso } from '@/lib/crud';
 import type { Aviso, TipoAviso } from '@/lib/types';
+import { router } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { Alert, Pressable, View } from 'react-native';
 
 type Filtro = 'todos' | TipoAviso;
 
@@ -48,13 +47,11 @@ export default function Avisos() {
   return (
     <Tela>
       <Cabecalho titulo="Avisos" subtitulo="Tudo que chegou, sem repetição." />
-
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {FILTROS.map((f) => (
           <Chip key={f.id} rotulo={f.rotulo} ativo={filtro === f.id} onPress={() => setFiltro(f.id)} />
         ))}
       </View>
-
       {visiveis.length === 0 ? (
         <Cartao>
           <Vazio
@@ -93,6 +90,14 @@ export default function Avisos() {
                     <Txt v="legenda" cor="textMuted">
                       {haQuanto(a.recebidoEm)}
                     </Txt>
+                    {a.autor ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Icone nome="person-outline" tamanho={13} cor="textSecondary" />
+                        <Txt v="legenda" cor="textSecondary" style={{ fontWeight: '600' }}>
+                          {a.autor}
+                        </Txt>
+                      </View>
+                    ) : null}
                     {a.prazo ? (
                       <Selo
                         rotulo={textoPrazo({ data: a.prazo, semHora: a.prazoSemHora && !a.horaNaoInformada, horaNaoInformada: a.horaNaoInformada })}
@@ -172,8 +177,8 @@ function EditorAviso({
     !prazo || aviso.prazoSemHora
       ? ''
       : aviso.horaNaoInformada
-        ? NAO_INFORMADO_TEXTO
-        : `${doisDigitos(prazo.getHours())}:${doisDigitos(prazo.getMinutes())}`
+      ? NAO_INFORMADO_TEXTO
+      : `${doisDigitos(prazo.getHours())}:${doisDigitos(prazo.getMinutes())}`
   );
   const [erro, setErro] = useState('');
 
