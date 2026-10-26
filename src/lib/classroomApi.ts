@@ -422,4 +422,3 @@ export async function buscarDadosGoogleClassroom(accessToken: string): Promise<P
   };
 }
 
-}
