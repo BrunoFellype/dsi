@@ -45,7 +45,7 @@ export default function Assuntos() {
         <>
           {agrupamento.silhueta !== null ? (
             <Txt v="legenda" cor="textMuted">
-              {agrupamento.k} assuntos • {agrupamento.grupos.reduce((acc, g) => acc + g.avisos.length, 0)} mensagens distribuídas
+              {agrupamento.k} assuntos • {agrupamento.grupos.reduce((acc, g) => acc + g.avisos.length, 0)} mensagens distribuídas • silhueta {agrupamento.silhueta.toFixed(2).replace('.', ',')}
               {totalCorrecoes > 0 ? ` • ${totalCorrecoes} ${totalCorrecoes === 1 ? 'correção sua' : 'correções suas'}` : ''}
             </Txt>
           ) : null}

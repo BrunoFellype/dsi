@@ -170,6 +170,26 @@ export function silhueta(vetores: number[][], rotulos: number[]): number {
   return total / vetores.length;
 }
 
+/**
+ * Testa k de 2 até kMax e fica com o agrupamento de maior Coeficiente de Silhueta.
+ * Precisa de pelo menos 3 vetores (k vai até n - 1).
+ */
+export function escolherK(vetores: number[][], kMax = 6) {
+  const limite = Math.min(kMax, vetores.length - 1);
+  let melhor = {
+    k: 1,
+    rotulos: new Array<number>(vetores.length).fill(0),
+    centros: [] as number[][],
+    silhueta: -Infinity,
+  };
+  for (let k = 2; k <= limite; k++) {
+    const resultado = kmeans(vetores, k);
+    const valor = silhueta(vetores, resultado.rotulos);
+    if (valor > melhor.silhueta) melhor = { k, ...resultado, silhueta: valor };
+  }
+  return melhor;
+}
+
 /** Recupera a grafia original (com acento) de um termo normalizado, olhando os textos do grupo. */
 function palavraOriginal(termo: string, textos: string[]): string {
   for (const texto of textos) {
@@ -249,8 +269,8 @@ export function agruparAvisos(
     } else {
       const docs = avulsos.map((a) => a.texto);
       const { vocabulario, vetores } = tfidf(docs);
-      const k = Math.min(3, Math.floor(avulsos.length / 2));
-      const { rotulos, centros } = kmeans(vetores, k);
+      // k escolhido pelo Coeficiente de Silhueta (k de 2 a 6)
+      const { k, rotulos, centros } = escolherK(vetores);
       for (let c = 0; c < k; c++) {
         const membros = avulsos.filter((_, i) => rotulos[i] === c);
         if (membros.length === 0) continue;
@@ -293,9 +313,18 @@ export function agruparAvisos(
   // Ordena por grupos com mais mensagens primeiro
   grupos.sort((a, b) => b.avisos.length - a.avisos.length);
 
+  // Silhueta do agrupamento final (com as correções), medida nos vetores TF-IDF
+  let valorSilhueta: number | null = null;
+  if (grupos.length > 1) {
+    const todos = grupos.flatMap((g) => g.avisos);
+    const rotulosFinais = grupos.flatMap((g, i) => g.avisos.map(() => i));
+    const { vetores } = tfidf(todos.map((a) => a.texto));
+    valorSilhueta = Math.round(silhueta(vetores, rotulosFinais) * 1000) / 1000;
+  }
+
   return {
     grupos,
-    silhueta: grupos.length > 1 ? 0.65 : null,
+    silhueta: valorSilhueta,
     k: grupos.length,
   };
 }

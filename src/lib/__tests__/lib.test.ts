@@ -6,7 +6,7 @@ import { chaveDia, diasAte, lerDataHora, rotuloDia, rotuloPrazo } from '../datas
 import { avisosDemo } from '../demo';
 import { calcularLembretes, LIMITE_LEMBRETES } from '../lembretesLogica';
 import type { Atividade } from '../types';
-import { agruparAvisos, agruparRepetidos, silhueta, tfidf, tokenizar } from '../ml';
+import { agruparAvisos, agruparRepetidos, escolherK, silhueta, tfidf, tokenizar } from '../ml';
 import { criarAvisos, detectarDisciplina, detectarTipo, extrairPrazo, separarMensagens } from '../parse';
 
 // Quarta-feira, 14/10/2026, 12h
@@ -200,6 +200,24 @@ describe('aprendizado de máquina', () => {
   it('silhueta de grupos bem separados é alta', () => {
     const v = [[1, 0], [0.99, 0.14], [0, 1], [0.14, 0.99]];
     assert.ok(silhueta(v, [0, 0, 1, 1]) > 0.8);
+  });
+
+  it('escolhe k pela maior silhueta', () => {
+    const v = [
+      [1, 0, 0], [0.99, 0.14, 0], [0.98, 0, 0.2],
+      [0, 1, 0], [0.14, 0.99, 0], [0, 0.98, 0.2],
+      [0, 0, 1], [0.14, 0, 0.99], [0, 0.2, 0.98],
+    ];
+    const r = escolherK(v);
+    assert.equal(r.k, 3);
+    assert.ok(r.silhueta > 0.8);
+  });
+
+  it('a silhueta devolvida é calculada, não fixa', () => {
+    const r = agruparAvisos(avisosDemo());
+    const copia = agruparAvisos(avisosDemo().slice(0, 6));
+    assert.ok(r.silhueta !== null && copia.silhueta !== null);
+    assert.notEqual(r.silhueta, 0.65);
   });
 });
 
