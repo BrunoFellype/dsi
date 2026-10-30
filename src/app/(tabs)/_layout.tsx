@@ -33,9 +33,9 @@ export default function LayoutAbas() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: t.primary,
-        tabBarInactiveTintColor: t.textMuted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-        tabBarStyle: { backgroundColor: t.surface, borderTopColor: t.border },
+        tabBarInactiveTintColor: t.textSecondary,
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
+        tabBarStyle: { backgroundColor: t.surface, borderTopColor: t.border, height: 60, paddingBottom: 6 },
       }}
     >
       {ABAS.map((aba) => (

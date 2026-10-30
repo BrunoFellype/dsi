@@ -1,5 +1,5 @@
 import { Botao, Cabecalho, Cartao, Chip, Icone, Selo, SeloFonte, Tela, Txt, Vazio, type IconName } from '@/components/ui';
-import { useTheme } from '@/hooks/use-theme';
+import { useTheme } from '@/hooks/use-theme'; 
 import { haQuanto } from '@/lib/datas';
 import { montarExportacao } from '@/lib/exportacao';
 import { textoPrazo } from '@/lib/horarios';
@@ -7,7 +7,7 @@ import { useAstra } from '@/lib/store';
 import type { Aviso, Grupo, TipoAviso } from '@/lib/types';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, Share, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, Share, View } from 'react-native'; 
 
 const ICONE_TIPO: Record<TipoAviso, IconName> = {
   prazo: 'alarm-outline',
@@ -23,12 +23,30 @@ const ROTULO_TIPO: Record<TipoAviso, string> = {
 
 export default function Assuntos() {
   const { agrupamento, corrigirGrupo, desfazerCorrecao, correcoes } = useAstra();
+  const t = useTheme(); 
   const [aberto, setAberto] = useState<string | null>(null);
   const [corrigindo, setCorrigindo] = useState<string | null>(null);
+  const [atualizando, setAtualizando] = useState(false); 
   const totalCorrecoes = Object.keys(correcoes).length;
 
+  async function aoAtualizar() {
+    setAtualizando(true);
+    setTimeout(() => {
+      setAtualizando(false);
+    }, 1200);
+  }
+
   return (
-    <Tela>
+    <Tela
+      refreshControl={
+        <RefreshControl
+          refreshing={atualizando}
+          onRefresh={aoAtualizar}
+          tintColor={t.primary}
+          colors={[t.primary]}
+        />
+      }
+    >
       <Cabecalho titulo="Assuntos" subtitulo="O ASTRA agrupa suas mensagens por tema." />
 
       {agrupamento.grupos.length === 0 ? (

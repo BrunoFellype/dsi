@@ -20,11 +20,14 @@ import { useAstra } from '@/lib/store';
 import type { FonteId } from '@/lib/types';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
-import { Switch, View } from 'react-native';
+import { RefreshControl, Switch, View } from 'react-native'; 
 
 const FONTES_MENSAGEM: FonteId[] = ['whatsapp', 'telegram', 'classroom', 'discord', 'email'];
 
 export default function Fontes() {
+  const t = useTheme(); 
+  const [atualizando, setAtualizando] = useState(false); 
+
   const {
     sessao,
     sigaa,
@@ -46,8 +49,24 @@ export default function Fontes() {
     desconectarClassroom,
   } = useAstra();
 
+  async function aoAtualizar() {
+    setAtualizando(true);
+    setTimeout(() => {
+      setAtualizando(false);
+    }, 1200);
+  }
+
   return (
-    <Tela>
+    <Tela
+      refreshControl={
+        <RefreshControl
+          refreshing={atualizando}
+          onRefresh={aoAtualizar}
+          tintColor={t.primary}
+          colors={[t.primary]}
+        />
+      }
+    >
       <Cabecalho titulo="Fontes" subtitulo="De onde vêm as informações do ASTRA." />
 
       <Secao titulo="SIGAA">
@@ -67,7 +86,6 @@ export default function Fontes() {
           onDesconectar={desconectarSigaa}
         />
       </Secao>
-
       {/* Integração com o Google Classroom: conexão via OAuth, sincronização de turmas e desconexão */}
       <Secao titulo="GOOGLE CLASSROOM">
         <Cartao style={{ gap: 14 }}>

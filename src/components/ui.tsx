@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  RefreshControlProps,
   type StyleProp,
   type TextInputProps,
   type TextStyle,
@@ -57,11 +58,13 @@ export function Tela({
   rolavel = true,
   rodape,
   style,
+  refreshControl,
 }: {
   children: React.ReactNode;
   rolavel?: boolean;
   rodape?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  refreshControl?: React.ReactElement<RefreshControlProps>; 
 }) {
   const t = useTheme();
   const conteudo = <View style={[estilos.coluna, style]}>{children}</View>;
@@ -72,6 +75,7 @@ export function Tela({
           contentContainerStyle={estilos.rolagem}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
         >
           {conteudo}
         </ScrollView>
@@ -95,15 +99,15 @@ export function Cabecalho({
   acao?: React.ReactNode;
 }) {
   return (
-    <View style={estilos.cabecalho}>
-      <View style={{ flex: 1, gap: 2 }}>
+    <View style={[estilos.cabecalho, { gap: 12 }]}>
+      <View style={{ flex: 1, gap: 4 }}>
         {voltar ? (
           <Pressable
             onPress={voltar}
             accessibilityRole="button"
             accessibilityLabel="Voltar"
             hitSlop={12}
-            style={estilos.voltar}
+            style={[estilos.voltar, { alignSelf: 'flex-start', marginBottom: 4 }]}
           >
             <Icone nome="chevron-back" tamanho={20} cor="primary" />
             <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>

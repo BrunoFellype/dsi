@@ -4,10 +4,11 @@ import type { EdicaoAviso } from '@/lib/crud';
 import { haQuanto, lerDataHora } from '@/lib/datas';
 import { HORARIOS_SUGERIDOS, textoPrazo } from '@/lib/horarios';
 import { useAstra } from '@/lib/store';
+import { useTheme } from '@/hooks/use-theme';
 import type { Aviso, TipoAviso } from '@/lib/types';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Alert, Pressable, RefreshControl, View } from 'react-native'; 
 
 type Filtro = 'todos' | TipoAviso;
 
@@ -33,11 +34,19 @@ function confirmarRemocao(texto: string, remover: () => void) {
 
 export default function Avisos() {
   const { avisos, repetidos, removerAviso, editarAviso, sigaa } = useAstra();
+  const t = useTheme(); 
   const [editando, setEditando] = useState<string | null>(null);
   const disciplinas = (sigaa?.disciplinas ?? []).map((d) => d.titulo);
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [atualizando, setAtualizando] = useState(false); 
 
-  // Mensagens quase iguais de canais diferentes viram um único aviso
+  async function aoAtualizar() {
+    setAtualizando(true);
+    setTimeout(() => {
+      setAtualizando(false);
+    }, 1200);
+  }
+
   const visiveis = useMemo(() => {
     const escondidos = new Set<string>();
     Object.values(repetidos).forEach((g) => g.slice(1).forEach((a) => escondidos.add(a.id)));
@@ -45,7 +54,16 @@ export default function Avisos() {
   }, [avisos, repetidos, filtro]);
 
   return (
-    <Tela>
+    <Tela
+      refreshControl={
+        <RefreshControl
+          refreshing={atualizando}
+          onRefresh={aoAtualizar}
+          tintColor={t.primary}
+          colors={[t.primary]}
+        />
+      }
+    >
       <Cabecalho titulo="Avisos" subtitulo="Tudo que chegou, sem repetição." />
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         {FILTROS.map((f) => (
