@@ -1,5 +1,5 @@
-import React from 'react';
-import { View } from 'react-native';
+import React, { useState } from 'react';
+import { RefreshControl, View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Botao, Cabecalho, Cartao, Icone, Secao, Selo, SeloFonte, Tela, Txt, Vazio } from '@/components/ui';
@@ -12,6 +12,14 @@ import { useTheme } from '@/hooks/use-theme';
 export default function Inicio() {
   const { nome, atividades, avisos, sigaa, pendentesHorario, confirmarHorario } = useAstra();
   const t = useTheme();
+  const [atualizando, setAtualizando] = useState(false);
+
+  async function aoAtualizar() {
+    setAtualizando(true);
+    setTimeout(() => {
+      setAtualizando(false);
+    }, 1200);
+  }
 
   const pendentes = atividades.filter((a) => !a.concluida && diasAte(new Date(a.data)) >= 0);
   const proximas = pendentes.slice(0, 3);
@@ -20,7 +28,16 @@ export default function Inicio() {
   const semDados = avisos.length === 0 && !sigaa && atividades.length === 0;
 
   return (
-    <Tela>
+    <Tela
+        refreshControl={
+          <RefreshControl
+            refreshing={atualizando}
+            onRefresh={aoAtualizar}
+            tintColor={t.primary}
+            colors={[t.primary]}
+          />
+        }
+      >
       <Cabecalho
         titulo={primeiroNome ? `Olá, ${primeiroNome}` : 'Olá'}
         subtitulo={

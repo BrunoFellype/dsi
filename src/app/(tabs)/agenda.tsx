@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, RefreshControl, View } from 'react-native';
 
 import {
   Botao,
@@ -20,14 +20,26 @@ import { Seletor, NAO_INFORMADO_TEXTO } from '@/components/seletor';
 import { chaveDia, lerDataHora, rotuloDia } from '@/lib/datas';
 import { textoHora } from '@/lib/horarios';
 import { useAstra } from '@/lib/store';
+import { useTheme } from '@/hooks/use-theme'; // <- Adicionado para usar a cor primária no tintColor
 import type { Atividade } from '@/lib/types';
 
 type Filtro = 'pendentes' | 'concluidas';
 
 export default function Agenda() {
   const { atividades, alternarConcluida, adicionarAtividade, removerAtividade, pendentesHorario, confirmarHorario, sigaa } = useAstra();
+  const t = useTheme(); // <- Instancia o tema atual
   const [filtro, setFiltro] = useState<Filtro>('pendentes');
   const [formAberto, setFormAberto] = useState(false);
+  const [atualizando, setAtualizando] = useState(false); // <- Estado de reload
+
+  // Função disparada ao puxar a tela para baixo
+  async function aoAtualizar() {
+    setAtualizando(true);
+    // Aqui você pode chamar a sincronização real da agenda/SIGAA se houver
+    setTimeout(() => {
+      setAtualizando(false);
+    }, 1200);
+  }
 
   const lista = atividades.filter((a) => (filtro === 'pendentes' ? !a.concluida : a.concluida));
 
@@ -41,7 +53,16 @@ export default function Agenda() {
   }, [lista]);
 
   return (
-    <Tela>
+    <Tela
+      refreshControl={
+        <RefreshControl
+          refreshing={atualizando}
+          onRefresh={aoAtualizar}
+          tintColor={t.primary}
+          colors={[t.primary]}
+        />
+      }
+    >
       <Cabecalho
         titulo="Agenda"
         subtitulo="Prazos e avaliações de todas as fontes."
@@ -204,10 +225,10 @@ function NovaAtividade({
       )}
       <View style={{ flexDirection: 'row', gap: 12 }}>
         <View style={{ flex: 1 }}>
-          <Campo rotulo="Data" value={dia} onChangeText={setDia} placeholder="25/10" keyboardType="numbers-and-punctuation" />
+          <Campo rotulo="Data" value={dia} onChangeText={setDia} placeholder="dd/mm" keyboardType="numbers-and-punctuation" />
         </View>
         <View style={{ flex: 1 }}>
-          <Campo rotulo="Hora (opcional)" value={horario} onChangeText={setHorario} placeholder="14:30" keyboardType="numbers-and-punctuation" />
+          <Campo rotulo="Hora (opcional)" value={horario} onChangeText={setHorario} placeholder="hh:mm" keyboardType="numbers-and-punctuation" />
         </View>
       </View>
       {erro ? <Mensagem tom="erro" texto={erro} /> : null}

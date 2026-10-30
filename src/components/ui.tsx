@@ -11,6 +11,7 @@ import {
   Text,
   TextInput,
   View,
+  RefreshControlProps,
   type StyleProp,
   type TextInputProps,
   type TextStyle,
@@ -57,11 +58,13 @@ export function Tela({
   rolavel = true,
   rodape,
   style,
+  refreshControl,
 }: {
   children: React.ReactNode;
   rolavel?: boolean;
   rodape?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  refreshControl?: React.ReactElement<RefreshControlProps>; 
 }) {
   const t = useTheme();
   const conteudo = <View style={[estilos.coluna, style]}>{children}</View>;
@@ -72,6 +75,7 @@ export function Tela({
           contentContainerStyle={estilos.rolagem}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
         >
           {conteudo}
         </ScrollView>
