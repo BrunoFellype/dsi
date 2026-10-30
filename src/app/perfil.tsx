@@ -40,6 +40,16 @@ export default function Perfil() {
       .catch(() => setErro('Não foi possível carregar o perfil.'))
       .finally(() => setCarregando(false));
   }, [sessao]);
+    if (carregando) {
+      return (
+        <Tela>
+          <Cabecalho titulo="Perfil" voltar={() => router.back()} />
+          <Cartao style={{ alignItems: 'center', padding: 24 }}>
+            <Txt cor="textSecondary">Carregando dados do perfil...</Txt>
+          </Cartao>
+        </Tela>
+      );
+    }
 
   async function salvar() {
     const usuario = auth.currentUser;
@@ -162,36 +172,42 @@ export default function Perfil() {
         }
       />
 
-      <Cartao style={{ gap: 16 }}>
-        <Campo rotulo="Nome" value={nome} onChangeText={setNome} editable={editando && !salvando} autoCapitalize="words" />
-        <Campo rotulo="E-mail" value={email} onChangeText={setEmail} editable={editando && !salvando} keyboardType="email-address" autoCapitalize="none" />
-        {editando ? (
-          <>
-            <Seletor
-              rotulo="Curso"
-              opcoes={curso && curso !== NAO_INFORMADO_TEXTO && !CURSOS.includes(curso) ? [curso, ...CURSOS] : CURSOS}
-              valor={curso}
-              onChange={setCurso}
-              placeholderOutro="Nome do curso"
-            />
-            <Seletor rotulo="Período" opcoes={PERIODOS} valor={periodo} onChange={setPeriodo} placeholderOutro="Ex.: 13º" />
-          </>
-        ) : (
-          <>
-            <Campo rotulo="Curso" value={curso || NAO_INFORMADO_TEXTO} editable={false} />
-            <Campo rotulo="Período" value={periodo || NAO_INFORMADO_TEXTO} editable={false} />
-          </>
-        )}
-        {erro ? <Mensagem tom="erro" texto={erro} /> : null}
-        {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
-        {editando ? (
-          <View style={{ gap: 8 }}>
-            <Botao titulo="Salvar" onPress={salvar} carregando={salvando} />
-            <Botao titulo="Cancelar" variante="texto" onPress={() => setEditando(false)} desabilitado={salvando} />
-          </View>
-        ) : null}
-      </Cartao>
+      {erro && !editando && !nome ? (
+        <Cartao>
+          <Mensagem tom="erro" texto={erro} />
+        </Cartao>
+      ) : (
 
+        <Cartao style={{ gap: 16 }}>
+          <Campo rotulo="Nome" value={nome} onChangeText={setNome} editable={editando && !salvando} autoCapitalize="words" />
+          <Campo rotulo="E-mail" value={email} onChangeText={setEmail} editable={editando && !salvando} keyboardType="email-address" autoCapitalize="none" />
+          {editando ? (
+            <>
+              <Seletor
+                rotulo="Curso"
+                opcoes={curso && curso !== NAO_INFORMADO_TEXTO && !CURSOS.includes(curso) ? [curso, ...CURSOS] : CURSOS}
+                valor={curso}
+                onChange={setCurso}
+                placeholderOutro="Nome do curso"
+              />
+              <Seletor rotulo="Período" opcoes={PERIODOS} valor={periodo} onChange={setPeriodo} placeholderOutro="Ex.: 13º" />
+            </>
+          ) : (
+            <>
+              <Campo rotulo="Curso" value={curso || NAO_INFORMADO_TEXTO} editable={false} />
+              <Campo rotulo="Período" value={periodo || NAO_INFORMADO_TEXTO} editable={false} />
+            </>
+          )}
+          {erro ? <Mensagem tom="erro" texto={erro} /> : null}
+          {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
+          {editando ? (
+            <View style={{ gap: 8 }}>
+              <Botao titulo="Salvar" onPress={salvar} carregando={salvando} />
+              <Botao titulo="Cancelar" variante="texto" onPress={() => setEditando(false)} desabilitado={salvando} />
+            </View>
+          ) : null}
+        </Cartao>
+      )}
       <CartaoLembretes
         lembretes={lembretes}
         resumoDiario={resumoDiario}

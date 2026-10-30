@@ -95,15 +95,15 @@ export function Cabecalho({
   acao?: React.ReactNode;
 }) {
   return (
-    <View style={estilos.cabecalho}>
-      <View style={{ flex: 1, gap: 2 }}>
+    <View style={[estilos.cabecalho, { gap: 12 }]}>
+      <View style={{ flex: 1, gap: 4 }}>
         {voltar ? (
           <Pressable
             onPress={voltar}
             accessibilityRole="button"
             accessibilityLabel="Voltar"
             hitSlop={12}
-            style={estilos.voltar}
+            style={[estilos.voltar, { alignSelf: 'flex-start', marginBottom: 4 }]}
           >
             <Icone nome="chevron-back" tamanho={20} cor="primary" />
             <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>
