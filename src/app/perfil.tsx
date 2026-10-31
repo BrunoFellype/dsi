@@ -153,8 +153,20 @@ export default function Perfil() {
       await deleteUser(usuario);
       sair();
       router.replace('/login');
-    } catch {
-      setErro('Não foi possível excluir a conta.');
+    } catch (erro:any) {
+      if (erro.code === 'auth/requires-recent-login') {
+          setErro(
+            'Por segurança, você precisa entrar novamente antes de excluir sua conta.'
+          );
+        } else if (erro.code === 'permission-denied') {
+          setErro(
+            'Você não possui permissão para excluir os dados desta conta.'
+          );
+        } else {
+      setErro(
+        `Não foi possível excluir a conta.`
+      );
+    }
     }
   }
 
