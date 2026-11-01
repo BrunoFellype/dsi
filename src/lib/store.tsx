@@ -110,6 +110,7 @@ interface Contexto extends Persistido {
   alternarConcluida: (id: string) => void;
   adicionarAtividade: (a: Omit<Atividade, 'id' | 'concluida' | 'fonte'>) => void;
   removerAtividade: (id: string) => void;
+  atualizarAtividade: (id: string, dados: Partial<Omit<Atividade, 'id'>>) => void;
   registrarDia: (r: Omit<RegistroDiario, 'dia'>) => void;
   corrigirGrupo: (avisoId: string, ancoraId: string) => void;
   definirPonte: (url: string) => void;
@@ -192,7 +193,22 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     if (!chave || chave === 'demo') return;
     carregado.current = false;
     AsyncStorage.getItem(`astra:v1:${chave}`)
-      .then((bruto) => setDados(bruto ? { ...VAZIO, ...JSON.parse(bruto) } : VAZIO))
+      .then((bruto) => {
+        if (bruto) {
+          const dadosRestaurados = JSON.parse(bruto);
+          // Reseta o estado de sincronização ao restaurar do armazenamento local para evitar loading infinito residual
+          setDados({
+            ...VAZIO,
+            ...dadosRestaurados,
+            statusClassroom: {
+              ...(dadosRestaurados.statusClassroom ?? VAZIO.statusClassroom),
+              sincronizando: false,
+            },
+          });
+        } else {
+          setDados(VAZIO);
+        }
+      })
       .catch(() => setDados(VAZIO))
       .finally(() => {
         carregado.current = true;
@@ -328,19 +344,36 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
           };
         });
       } catch (err: any) {
-        if (err?.message === 'TOKEN_EXPIRADO_OU_SEM_PERMISSAO') {
+        // Se o usuário fechou o popup/janela do Google, não exibe erro na tela e apenas destrava o botão
+        const popupFechado =
+          err?.code === 'auth/popup-closed-by-user' ||
+          err?.code === 'auth/cancelled-popup-request' ||
+          err?.message?.includes('closed-by-user');
+
+        if (!popupFechado) {
           await apagarTokenClassroom();
         }
+
         setDados((d) => ({
           ...d,
           statusClassroom: {
             ...d.statusClassroom,
             conectado: false,
             sincronizando: false,
-            erro:
-              err?.message === 'TOKEN_EXPIRADO_OU_SEM_PERMISSAO'
-                ? 'Sessão do Google Classroom expirou. Conecte novamente.'
-                : err?.message || 'Falha ao sincronizar Google Classroom.',
+            erro: popupFechado
+              ? null
+              : err?.message === 'TOKEN_EXPIRADO_OU_SEM_PERMISSAO'
+              ? 'Sessão do Google Classroom expirou. Conecte novamente.'
+              : err?.message || 'Falha ao sincronizar Google Classroom.',
+          },
+        }));
+      } finally {
+        // Garante que o loading seja sempre desligado, mesmo em cancelamentos ou erros inesperados
+        setDados((d) => ({
+          ...d,
+          statusClassroom: {
+            ...d.statusClassroom,
+            sincronizando: false,
           },
         }));
       }
@@ -464,6 +497,18 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // Permite atualizar os dados de uma tarefa manual por ID no estado global
+  const atualizarAtividade = useCallback(
+    (id: string, novosDados: Partial<Omit<Atividade, 'id' | 'fonte'>>) =>
+      setDados((d) => ({
+        ...d,
+        manuais: d.manuais.map((item) =>
+          item.id === id ? { ...item, ...novosDados } : item
+        ),
+      })),
+    []
+  );
+
   const registrarDia = useCallback(
     (r: Omit<RegistroDiario, 'dia'>) =>
       setDados((d) => {
@@ -473,6 +518,7 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
       }),
     []
   );
+
 
   const corrigirGrupo = useCallback(
     (avisoId: string, ancoraId: string) =>
@@ -632,6 +678,7 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     alternarConcluida,
     adicionarAtividade,
     removerAtividade,
+    atualizarAtividade,
     registrarDia,
     corrigirGrupo,
     definirPonte,

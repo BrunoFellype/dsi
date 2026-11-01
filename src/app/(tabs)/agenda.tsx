@@ -1,6 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Modal, Pressable, RefreshControl, View } from 'react-native';
 
+import { ConfirmarHorarios } from '@/components/confirmarHorarios';
+import { NAO_INFORMADO_TEXTO, Seletor } from '@/components/seletor';
 import {
   Botao,
   Cabecalho,
@@ -15,22 +17,61 @@ import {
   Txt,
   Vazio,
 } from '@/components/ui';
-import { ConfirmarHorarios } from '@/components/confirmarHorarios';
-import { Seletor, NAO_INFORMADO_TEXTO } from '@/components/seletor';
+import { useTheme } from '@/hooks/use-theme'; // <- Adicionado para usar a cor primária no tintColor
 import { chaveDia, lerDataHora, rotuloDia } from '@/lib/datas';
 import { textoHora } from '@/lib/horarios';
 import { useAstra } from '@/lib/store';
-import { useTheme } from '@/hooks/use-theme'; // <- Adicionado para usar a cor primária no tintColor
 import type { Atividade } from '@/lib/types';
 import { Swipeable } from 'react-native-gesture-handler';
 type Filtro = 'pendentes' | 'concluidas';
 
 export default function Agenda() {
-  const { atividades, alternarConcluida, adicionarAtividade, removerAtividade, pendentesHorario, confirmarHorario, sigaa } = useAstra();
+  const { atividades, alternarConcluida, adicionarAtividade, removerAtividade, atualizarAtividade, pendentesHorario, confirmarHorario, sigaa } = useAstra();
   const t = useTheme(); // <- Instancia o tema atual
   const [filtro, setFiltro] = useState<Filtro>('pendentes');
   const [formAberto, setFormAberto] = useState(false);
   const [atualizando, setAtualizando] = useState(false); // <- Estado de reload
+
+  // Estados para controle do modal e campos de edição de tarefas manuais
+  const [editando, setEditando] = useState<Atividade | null>(null);
+  const [tituloEdicao, setTituloEdicao] = useState('');
+  const [disciplinaEdicao, setDisciplinaEdicao] = useState('');
+  const [diaEdicao, setDiaEdicao] = useState('');
+  const [horarioEdicao, setHorarioEdicao] = useState('');
+  const [erroEdicao, setErroEdicao] = useState('');
+
+  // Abre o modal de edição preenchendo os campos com as informações atuais da atividade
+  function abrirEdicao(a: Atividade) {
+    const dataObj = new Date(a.data);
+    const d = String(dataObj.getDate()).padStart(2, '0');
+    const m = String(dataObj.getMonth() + 1).padStart(2, '0');
+    const h = String(dataObj.getHours()).padStart(2, '0');
+    const min = String(dataObj.getMinutes()).padStart(2, '0');
+
+    setEditando(a);
+    setTituloEdicao(a.titulo);
+    setDisciplinaEdicao(a.disciplina ?? '');
+    setDiaEdicao(`${d}/${m}`);
+    setHorarioEdicao(a.horaNaoInformada ? '' : `${h}:${min}`);
+    setErroEdicao('');
+  }
+
+  // Valida os campos editados e atualiza a atividade manual na lista através do store
+  function salvarEdicao() {
+    if (!editando) return;
+    if (tituloEdicao.trim().length < 3) return setErroEdicao('Dê um nome para a tarefa.');
+
+    const data = lerDataHora(diaEdicao, horarioEdicao);
+    if (!data) return setErroEdicao('Data ou horário inválidos. Use DD/MM e HH:MM.');
+
+    atualizarAtividade(editando.id, {
+      titulo: tituloEdicao.trim(),
+      disciplina: disciplinaEdicao.trim() && disciplinaEdicao !== NAO_INFORMADO_TEXTO ? disciplinaEdicao.trim() : undefined,
+      data: data.toISOString(),
+      horaNaoInformada: horarioEdicao.trim() ? undefined : true,
+    });
+    setEditando(null);
+  }
 
   // Função disparada ao puxar a tela para baixo
   async function aoAtualizar() {
@@ -115,11 +156,43 @@ export default function Agenda() {
                 atividade={a}
                 onAlternar={() => alternarConcluida(a.id)}
                 onRemover={a.fonte === 'manual' ? () => removerAtividade(a.id) : undefined}
+                onEditar={a.fonte === 'manual' ? () => abrirEdicao(a) : undefined}
               />
             ))}
           </Secao>
         ))
       )}
+      {/* Modal para edição dos dados de tarefas manuais */}
+      <Modal visible={editando !== null} transparent animationType="slide" onRequestClose={() => setEditando(null)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setEditando(null)} />
+          <Cartao style={{ backgroundColor: t.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, gap: 14 }}>
+            <Txt v="subtitulo">Editar Tarefa</Txt>
+            <Campo rotulo="Título" value={tituloEdicao} onChangeText={setTituloEdicao} />
+            {(sigaa?.disciplinas ?? []).length > 0 ? (
+              <Seletor
+                rotulo="Disciplina"
+                opcoes={(sigaa?.disciplinas ?? []).map((d) => d.titulo)}
+                valor={disciplinaEdicao}
+                onChange={setDisciplinaEdicao}
+              />
+            ) : (
+              <Campo rotulo="Disciplina (opcional)" value={disciplinaEdicao} onChangeText={setDisciplinaEdicao} />
+            )}
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Campo rotulo="Data" value={diaEdicao} onChangeText={setDiaEdicao} placeholder="dd/mm" keyboardType="numeric" maxLength={5} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Campo rotulo="Hora" value={horarioEdicao} onChangeText={setHorarioEdicao} placeholder="hh:mm" keyboardType="numeric" maxLength={5} />
+              </View>
+            </View>
+            {erroEdicao ? <Mensagem tom="erro" texto={erroEdicao} /> : null}
+            <Botao titulo="Salvar alterações" onPress={salvarEdicao} />
+            <Botao titulo="Cancelar" variante="texto" onPress={() => setEditando(null)} />
+          </Cartao>
+        </View>
+      </Modal>
     </Tela>
   );
 }
