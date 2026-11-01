@@ -59,11 +59,11 @@ export interface ResultadoLoginGoogle {
  */
 export async function entrarComGoogle(): Promise<ResultadoLoginGoogle> {
   if (Platform.OS === 'web') {
-    // Configura o provedor Google com os escopos do Classroom e prompt de consentimento
+    // Configura o provedor Google com os escopos do Classroom e força a seleção de conta para suportar a troca de conta
     const provider = new GoogleAuthProvider();
     CLASSROOM_SCOPES.forEach((scope) => provider.addScope(scope));
     provider.setCustomParameters({
-      prompt: 'consent',
+      prompt: 'select_account',
       access_type: 'offline',
     });
 

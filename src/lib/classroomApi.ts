@@ -108,26 +108,35 @@ export interface PacoteClassroom {
  * Identifica tokens expirados (401) e erros de autorização (403).
  */
 async function fetchClassroom<T>(endpoint: string, accessToken: string): Promise<T> {
-  const resposta = await fetch(`${CLASSROOM_BASE_URL}${endpoint}`, {
-    method: 'GET',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/json',
-    },
-  });
+  let resposta: Response;
+  // Trata falhas de rede/conectividade de forma defensiva para evitar exceções não tratadas
+  try {
+    resposta = await fetch(`${CLASSROOM_BASE_URL}${endpoint}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+  } catch {
+    throw new Error('Não foi possível conectar ao Google Classroom. Verifique sua conexão com a internet.');
+  }
 
+  // Normalização e mapeamento de códigos de erro HTTP em mensagens claras e amigáveis em português
   if (!resposta.ok) {
-    const textoErro = await resposta.text().catch(() => '');
     if (resposta.status === 401) {
       throw new Error('TOKEN_EXPIRADO_OU_SEM_PERMISSAO');
     }
-    try {
-      const jsonErro = JSON.parse(textoErro);
-      const mensagemGoogle = jsonErro?.error?.message || textoErro;
-      throw new Error(`Google Classroom (403): ${mensagemGoogle}`);
-    } catch {
-      throw new Error(`Google Classroom (${resposta.status}): ${textoErro || 'Acesso negado'}`);
+    if (resposta.status === 403) {
+      throw new Error('Acesso negado ao Google Classroom. Verifique as permissões da sua conta institucional.');
     }
+    if (resposta.status === 404) {
+      throw new Error('Recurso do Google Classroom não encontrado.');
+    }
+    if (resposta.status >= 500) {
+      throw new Error('Serviço do Google temporariamente instável. Tente novamente mais tarde.');
+    }
+    throw new Error('Não foi possível carregar as informações do Google Classroom no momento.');
   }
 
   return (await resposta.json()) as T;
