@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const { test, afterEach } = require('node:test');
 const { iniciarBotDiscordSeConfigurado } = require('./bot');
 const { canalAutorizado, lerConfiguracaoDiscord } = require('./config');
+const { lerCredencialFirebase, validarProjetoFirebase } = require('./firestore');
 const { interpretarMensagemDiscord, validarInterpretacao } = require('./interpretador');
 
 const ambiente = {
@@ -39,6 +40,28 @@ test('exige token, chave de IA e canais autorizados', () => {
     delete incompleto[chave];
     assert.throws(() => lerConfiguracaoDiscord(incompleto), /não configurad/);
   }
+});
+
+test('valida o projeto Firebase e a conta de serviço sem conectar', () => {
+  assert.equal(validarProjetoFirebase('astra-dev-123'), 'astra-dev-123');
+  assert.equal(validarProjetoFirebase(''), undefined);
+  assert.throws(() => validarProjetoFirebase('Projeto Inválido'), /FIREBASE_PROJECT_ID inválido/);
+  assert.throws(() => lerCredencialFirebase('{'), /JSON válido/);
+  assert.throws(() => lerCredencialFirebase(JSON.stringify({ type: 'service_account' })), /credencial service_account válida/);
+  assert.deepEqual(
+    lerCredencialFirebase(JSON.stringify({
+      type: 'service_account',
+      project_id: 'astra-dev-123',
+      private_key: 'private-key',
+      client_email: 'admin@example.com',
+    })),
+    {
+      type: 'service_account',
+      project_id: 'astra-dev-123',
+      private_key: 'private-key',
+      client_email: 'admin@example.com',
+    }
+  );
 });
 
 test('interpreta semanticamente uma mensagem acadêmica via JSON da IA', async () => {
