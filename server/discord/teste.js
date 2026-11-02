@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { test, afterEach } = require('node:test');
+const { iniciarBotDiscordSeConfigurado } = require('./bot');
 const { canalAutorizado, lerConfiguracaoDiscord } = require('./config');
 const { interpretarMensagemDiscord, validarInterpretacao } = require('./interpretador');
 
@@ -26,6 +27,18 @@ test('aceita somente o servidor e canal configurados', () => {
   const config = lerConfiguracaoDiscord(ambiente);
   assert.ok(canalAutorizado(config, 'servidor-1', 'canal-1'));
   assert.equal(canalAutorizado(config, 'servidor-1', 'canal-2'), undefined);
+});
+
+test('mantém o bot desativado sem token', () => {
+  assert.equal(iniciarBotDiscordSeConfigurado({}), null);
+});
+
+test('exige token, chave de IA e canais autorizados', () => {
+  for (const chave of ['DISCORD_BOT_TOKEN', 'AI_API_KEY', 'DISCORD_ALLOWED_CHANNELS']) {
+    const incompleto = { ...ambiente };
+    delete incompleto[chave];
+    assert.throws(() => lerConfiguracaoDiscord(incompleto), /não configurad/);
+  }
 });
 
 test('interpreta semanticamente uma mensagem acadêmica via JSON da IA', async () => {

@@ -10,6 +10,8 @@
  *   npm start   -> usa o SIGAA real
  *   npm run mock -> usa dados de demonstração (sem credenciais)
  */
+require('dotenv').config({ path: require('path').join(__dirname, '.env'), quiet: true });
+
 const http = require('http');
 const resumoDemo = require('./mock');
 const { ehErroDeCredencial } = require('sigaa-api/resumo');

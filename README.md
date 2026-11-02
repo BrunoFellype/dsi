@@ -158,6 +158,16 @@ FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account", "...":"..."}
 FIREBASE_PROJECT_ID=seu-projeto-firebase
 ```
 
+Para configuração local, copie o modelo versionado sem preenchê-lo no Git:
+
+```bash
+cd server
+copy .env.example .env
+```
+
+Edite somente `server/.env`. Esse arquivo é ignorado pelo Git; `server/.env.example` permanece
+versionado e contém apenas placeholders.
+
 `FIREBASE_SERVICE_ACCOUNT_JSON` deve ser o conteúdo da chave de uma conta de serviço do Firebase,
 armazenado no gerenciador de segredos do provedor, nunca no Git. Em ambientes que já fornecem
 Application Default Credentials, ele pode ser omitido. Para vários canais, adicione objetos ao

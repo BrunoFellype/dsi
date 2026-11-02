@@ -9,6 +9,7 @@
     "@react-native-google-signin/google-signin": "^16.1.5",
     "buffer": "^6.0.3",
     "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^18.0.9",
     "expo": "~57.0.30",
     "expo-clipboard": "^57.0.2",
     "expo-constants": "~57.0.17",
