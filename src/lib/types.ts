@@ -26,6 +26,14 @@ export interface Aviso {
     canalId: string;
     canalNome?: string;
     anexos: { nome?: string; url: string; tipo?: string }[];
+    interpretacao?: {
+      categoria: 'atividade' | 'prova' | 'avaliacao' | 'prazo' | 'material' | 'comunicado' | 'evento';
+      titulo: string | null;
+      disciplina: string | null;
+      data: string | null;
+      hora: string | null;
+      evidenciaData: string | null;
+    };
   };
 }
 

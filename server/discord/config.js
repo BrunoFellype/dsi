@@ -1,7 +1,9 @@
 function lerConfiguracaoDiscord(env = process.env) {
   const token = String(env.DISCORD_BOT_TOKEN || '').trim();
+  const aiApiKey = String(env.AI_API_KEY || '').trim();
   const bruto = String(env.DISCORD_ALLOWED_CHANNELS || '').trim();
   if (!token) throw new Error('DISCORD_BOT_TOKEN não configurado.');
+  if (!aiApiKey) throw new Error('AI_API_KEY não configurada.');
   if (!bruto) throw new Error('DISCORD_ALLOWED_CHANNELS não configurado.');
 
   let canais;
@@ -27,7 +29,7 @@ function lerConfiguracaoDiscord(env = process.env) {
       estudanteIds: [...new Set(canal.estudanteIds)],
     };
   });
-  return { token, canais: permitidos };
+  return { token, aiApiKey, canais: permitidos };
 }
 
 function canalAutorizado(config, guildId, channelId) {

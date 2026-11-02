@@ -1,4 +1,19 @@
-const DIAS = ['domingo', 'segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+const CATEGORIAS = ['atividade', 'prova', 'avaliacao', 'prazo', 'material', 'comunicado', 'evento'];
+const TIPOS_AVISO = new Set(['prazo', 'material', 'comunicado']);
+
+const ESQUEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['categoria', 'titulo', 'disciplina', 'data', 'hora', 'evidenciaData'],
+  properties: {
+    categoria: { type: 'string', enum: CATEGORIAS },
+    titulo: { type: ['string', 'null'] },
+    disciplina: { type: ['string', 'null'] },
+    data: { type: ['string', 'null'], description: 'Data ISO YYYY-MM-DD somente quando estiver explicitamente indicada.' },
+    hora: { type: ['string', 'null'], description: 'Hora HH:mm somente quando estiver explicitamente indicada.' },
+    evidenciaData: { type: ['string', 'null'], description: 'Trecho original que sustenta data e hora.' },
+  },
+};
 
 function normalizar(texto) {
   return String(texto)
@@ -7,57 +22,106 @@ function normalizar(texto) {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function extrairPrazo(texto, base = new Date()) {
-  const normalizado = normalizar(texto);
-  let data;
-  const dataNumerica = normalizado.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
-  if (dataNumerica) {
-    const ano = Number(dataNumerica[3] || base.getFullYear()) + (Number(dataNumerica[3]) < 100 ? 2000 : 0);
-    data = new Date(ano, Number(dataNumerica[2]) - 1, Number(dataNumerica[1]));
-    if (data.getMonth() !== Number(dataNumerica[2]) - 1) return null;
-  } else if (/\bamanha\b/.test(normalizado)) {
-    data = new Date(base.getFullYear(), base.getMonth(), base.getDate() + 1);
-  } else if (/\bhoje\b/.test(normalizado)) {
-    data = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  } else {
-    const dia = DIAS.findIndex((nome) => new RegExp(`\\b${nome}\\b`).test(normalizado));
-    if (dia < 0) return null;
-    const distancia = (dia - base.getDay() + 7) % 7 || 7;
-    data = new Date(base.getFullYear(), base.getMonth(), base.getDate() + distancia);
+function jsonDaResposta(corpo) {
+  const conteudo = corpo?.choices?.[0]?.message?.content;
+  if (typeof conteudo !== 'string') throw new Error('A API de IA não retornou conteúdo JSON.');
+  try {
+    return JSON.parse(conteudo);
+  } catch {
+    throw new Error('A API de IA retornou JSON inválido.');
   }
-  const hora = normalizado.match(/\b(\d{1,2})(?::|h)(\d{2})?\b/);
-  const temHora = Boolean(hora && Number(hora[1]) < 24);
-  data.setHours(temHora ? Number(hora[1]) : 23, temHora ? Number(hora[2] || 0) : 59, 0, 0);
-  return { data, temHora };
 }
 
-function tipoDoTexto(texto) {
-  const t = normalizar(texto);
-  if (/\b(prova|avaliacao|exame|entrega|entregar|prazo|lista|trabalho|atividade|questionario|seminario|p1|p2|1va|2va)\b/.test(t)) return 'prazo';
-  if (/\b(slide|slides|apostila|material|pdf|link|video|aula gravada|resumo|gabarito)\b/.test(t)) return 'material';
-  return 'comunicado';
+function validarInterpretacao(valor, texto) {
+  if (!valor || typeof valor !== 'object' || !CATEGORIAS.includes(valor.categoria)) {
+    throw new Error('A API de IA retornou uma categoria inválida.');
+  }
+  for (const campo of ['titulo', 'disciplina', 'data', 'hora', 'evidenciaData']) {
+    if (valor[campo] !== null && typeof valor[campo] !== 'string') {
+      throw new Error(`A API de IA retornou ${campo} em formato inválido.`);
+    }
+  }
+  if (valor.data !== null && !/^\d{4}-\d{2}-\d{2}$/.test(valor.data)) {
+    throw new Error('A API de IA retornou uma data fora do formato ISO.');
+  }
+  if (valor.hora !== null && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(valor.hora)) {
+    throw new Error('A API de IA retornou uma hora inválida.');
+  }
+  if (valor.data !== null && (!valor.evidenciaData || !normalizar(texto).includes(normalizar(valor.evidenciaData)))) {
+    throw new Error('A data retornada pela IA não possui evidência na mensagem original.');
+  }
+  if (valor.data === null && valor.hora !== null) {
+    throw new Error('A IA não pode retornar hora sem data.');
+  }
+  if (valor.data !== null) {
+    const data = new Date(`${valor.data}T${valor.hora || '23:59'}:00`);
+    if (Number.isNaN(data.getTime())) throw new Error('A API de IA retornou uma data inexistente.');
+    const [ano, mes, dia] = valor.data.split('-').map(Number);
+    if (data.getFullYear() !== ano || data.getMonth() + 1 !== mes || data.getDate() !== dia) {
+      throw new Error('A API de IA retornou uma data inexistente.');
+    }
+  }
+  return valor;
 }
 
-function hash(texto) {
-  let resultado = 0;
-  for (let i = 0; i < texto.length; i += 1) resultado = Math.imul(31, resultado) + texto.charCodeAt(i) | 0;
-  return Math.abs(resultado);
+async function interpretarSemanticamente(mensagem, env = process.env) {
+  const chave = String(env.AI_API_KEY || '').trim();
+  if (!chave) throw new Error('AI_API_KEY não configurada; mensagem Discord não processada.');
+  const endpoint = String(env.AI_API_URL || 'https://api.openai.com/v1/chat/completions').replace(/\/$/, '');
+  const modelo = String(env.AI_MODEL || 'gpt-4o-mini');
+  const controlador = new AbortController();
+  const timeout = setTimeout(() => controlador.abort(), Number(env.AI_TIMEOUT_MS) || 30000);
+  try {
+    const resposta = await fetch(endpoint, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${chave}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelo,
+        temperature: 0,
+        response_format: { type: 'json_schema', json_schema: { name: 'classificacao_academica', strict: true, schema: ESQUEMA } },
+        messages: [
+          {
+            role: 'system',
+            content: 'Classifique semanticamente mensagens acadêmicas em português. Use somente informações explícitas na mensagem. Se uma informação não estiver presente, retorne null. Não invente datas, horários, disciplinas ou títulos. Para data, evidenceData deve ser um trecho literal da mensagem.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({ mensagem: mensagem.texto, anexos: mensagem.anexos || [] }),
+          },
+        ],
+      }),
+      signal: controlador.signal,
+    });
+    const corpo = await resposta.json().catch(() => null);
+    if (!resposta.ok) throw new Error(`API de IA respondeu HTTP ${resposta.status}.`);
+    return validarInterpretacao(jsonDaResposta(corpo), mensagem.texto);
+  } catch (erro) {
+    if (erro?.name === 'AbortError') throw new Error('A API de IA excedeu o tempo limite.');
+    throw erro;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-function interpretarMensagemDiscord(mensagem) {
+function construirAviso(mensagem, interpretacao) {
   const texto = String(mensagem.texto || '').trim();
-  if (texto.length < 8) return null;
-  const recebidoEm = new Date(mensagem.recebidoEm || Date.now());
-  const tipo = tipoDoTexto(texto);
-  const prazo = tipo === 'prazo' ? extrairPrazo(texto, recebidoEm) : null;
+  const prazo = interpretacao.data
+    ? new Date(`${interpretacao.data}T${interpretacao.hora || '23:59'}:00`).toISOString()
+    : undefined;
+  const tipo = ['atividade', 'prova', 'avaliacao', 'prazo'].includes(interpretacao.categoria)
+    ? 'prazo'
+    : TIPOS_AVISO.has(interpretacao.categoria)
+      ? interpretacao.categoria
+      : 'comunicado';
   return {
-    id: `discord-${mensagem.id}-${hash(texto)}`,
+    id: `discord-${mensagem.id}`,
     fonte: 'discord',
     texto,
-    recebidoEm: recebidoEm.toISOString(),
+    recebidoEm: new Date(mensagem.recebidoEm || Date.now()).toISOString(),
     tipo,
-    prazo: prazo ? prazo.data.toISOString() : undefined,
-    prazoSemHora: prazo && !prazo.temHora ? true : undefined,
+    disciplina: interpretacao.disciplina || undefined,
+    prazo,
+    prazoSemHora: Boolean(interpretacao.data && !interpretacao.hora) || undefined,
     autor: mensagem.autor || undefined,
     discord: {
       mensagemId: mensagem.id,
@@ -66,8 +130,22 @@ function interpretarMensagemDiscord(mensagem) {
       canalId: mensagem.canalId,
       canalNome: mensagem.canalNome,
       anexos: mensagem.anexos || [],
+      interpretacao,
     },
   };
 }
 
-module.exports = { interpretarMensagemDiscord, extrairPrazo, tipoDoTexto };
+async function interpretarMensagemDiscord(mensagem, env = process.env) {
+  const texto = String(mensagem.texto || '').trim();
+  if (!texto && (!mensagem.anexos || mensagem.anexos.length === 0)) return null;
+  const interpretacao = await interpretarSemanticamente({ ...mensagem, texto }, env);
+  return construirAviso({ ...mensagem, texto }, interpretacao);
+}
+
+module.exports = {
+  interpretarMensagemDiscord,
+  interpretarSemanticamente,
+  validarInterpretacao,
+  construirAviso,
+  ESQUEMA,
+};

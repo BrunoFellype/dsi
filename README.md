@@ -126,7 +126,7 @@ Em **Fontes > Mensagens**, o botão **Colar da área de transferência** traz o 
 ### 🤖 Integração automática com Discord
 
 O backend também pode executar um bot oficial do Discord. Ele recebe apenas mensagens dos pares
-`guildId`/`channelId` configurados, interpreta prazos, atividades, avaliações, materiais e
+`guildId`/`channelId` configurados, interpreta semanticamente prazos, atividades, avaliações, materiais, comunicados e eventos por API de IA, e
 comunicados, e grava o resultado em `estudantes/{uid}/avisosDiscord`. O app escuta essa
 subcoleção em tempo real; os avisos entram automaticamente em Avisos, Assuntos e Agenda.
 O agrupamento continua sendo feito pelo TF-IDF + K-Means existente no app.
@@ -150,6 +150,10 @@ No serviço Node.js da pasta `server/`, configure:
 ```text
 DISCORD_BOT_TOKEN=token-do-bot
 DISCORD_ALLOWED_CHANNELS=[{"guildId":"ID_SERVIDOR","channelId":"ID_CANAL","estudanteIds":["UID_FIREBASE"]}]
+AI_API_KEY=chave-da-api-de-ia
+AI_API_URL=https://api.openai.com/v1/chat/completions
+AI_MODEL=gpt-4o-mini
+AI_TIMEOUT_MS=30000
 FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account", "...":"..."}
 FIREBASE_PROJECT_ID=seu-projeto-firebase
 ```
@@ -158,6 +162,11 @@ FIREBASE_PROJECT_ID=seu-projeto-firebase
 armazenado no gerenciador de segredos do provedor, nunca no Git. Em ambientes que já fornecem
 Application Default Credentials, ele pode ser omitido. Para vários canais, adicione objetos ao
 array; para vários estudantes, adicione UIDs a `estudanteIds`.
+
+`AI_API_KEY` é obrigatória quando o bot está ativo. A implementação usa uma API compatível com
+Chat Completions e exige JSON estruturado. Sem essa chave, nenhuma mensagem é gravada como se
+tivesse sido interpretada. `AI_API_URL` e `AI_MODEL` permitem usar outro provedor compatível.
+Falhas, timeouts e JSON inválido são registrados no backend e não geram avisos falsos.
 
 Depois, execute:
 
@@ -193,8 +202,8 @@ Variáveis da ponte: `ALLOWED_ORIGIN` (quem pode chamar), `TRUST_PROXY=1` (atrá
 ### 🧪 Testes
 
 ```bash
-npm test                 # 80 testes da lógica do app (datas, mensagens, IA, lembretes, contraste)
-cd server && npm test    # 4 testes da camada HTTP do celular contra um SIGAA falso
+npm test                 # testes da lógica do app (datas, mensagens, IA, lembretes, contraste)
+cd server && npm test    # testes do SIGAA e da integração Discord (sem chamadas externas)
 npx tsc --noEmit         # tipos
 npx eslint src           # estilo
 ```

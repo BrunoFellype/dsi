@@ -25,4 +25,12 @@ async function salvarAvisoDiscord(db, aviso, estudanteIds) {
   );
 }
 
-module.exports = { criarFirestore, salvarAvisoDiscord };
+async function removerAvisoDiscord(db, mensagemId, estudanteIds) {
+  await Promise.all(
+    estudanteIds.map((estudanteId) =>
+      db.collection('estudantes').doc(estudanteId).collection('avisosDiscord').doc(`discord-${mensagemId}`).delete()
+    )
+  );
+}
+
+module.exports = { criarFirestore, salvarAvisoDiscord, removerAvisoDiscord };
