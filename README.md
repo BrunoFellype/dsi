@@ -123,6 +123,64 @@ Em **Fontes**, o estudante pode ligar **Lembrar neste aparelho**. Usuário e sen
 
 Em **Fontes > Mensagens**, o botão **Colar da área de transferência** traz o texto copiado de uma conversa. A exportação de conversa do WhatsApp também é entendida.
 
+### 🤖 Integração automática com Discord
+
+O backend também pode executar um bot oficial do Discord. Ele recebe apenas mensagens dos pares
+`guildId`/`channelId` configurados, interpreta prazos, atividades, avaliações, materiais e
+comunicados, e grava o resultado em `estudantes/{uid}/avisosDiscord`. O app escuta essa
+subcoleção em tempo real; os avisos entram automaticamente em Avisos, Assuntos e Agenda.
+O agrupamento continua sendo feito pelo TF-IDF + K-Means existente no app.
+
+#### Configuração no Discord Developer Portal
+
+1. Acesse o [Discord Developer Portal](https://discord.com/developers/applications) e crie uma aplicação.
+2. Em **Bot**, crie o bot, copie o token uma única vez e guarde-o como segredo do servidor.
+3. Em **Bot > Privileged Gateway Intents**, habilite **Message Content Intent**.
+4. Em **OAuth2 > URL Generator**, marque os escopos `bot` e `applications.commands`, e a permissão
+   `View Channels` + `Read Message History` (não é necessário conceder `Administrator`).
+5. Abra a URL gerada, escolha o servidor e autorize o bot. O bot precisa conseguir visualizar e ler
+   cada canal autorizado.
+6. Ative o modo desenvolvedor no Discord e copie o ID do servidor, do canal e de cada estudante
+   ASTRA que deverá receber as mensagens. O ID do estudante é o UID do Firebase Authentication.
+
+#### Variáveis do backend
+
+No serviço Node.js da pasta `server/`, configure:
+
+```text
+DISCORD_BOT_TOKEN=token-do-bot
+DISCORD_ALLOWED_CHANNELS=[{"guildId":"ID_SERVIDOR","channelId":"ID_CANAL","estudanteIds":["UID_FIREBASE"]}]
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account", "...":"..."}
+FIREBASE_PROJECT_ID=seu-projeto-firebase
+```
+
+`FIREBASE_SERVICE_ACCOUNT_JSON` deve ser o conteúdo da chave de uma conta de serviço do Firebase,
+armazenado no gerenciador de segredos do provedor, nunca no Git. Em ambientes que já fornecem
+Application Default Credentials, ele pode ser omitido. Para vários canais, adicione objetos ao
+array; para vários estudantes, adicione UIDs a `estudanteIds`.
+
+Depois, execute:
+
+```bash
+cd server
+npm install
+npm start
+```
+
+Quando o bot estiver conectado, publique uma mensagem de teste em um canal autorizado. Ela deverá
+aparecer no ASTRA do estudante correspondente sem importar manualmente. Canais não listados são
+ignorados. O Firestore deve permitir leitura autenticada apenas da subcoleção do próprio estudante,
+por exemplo com uma regra equivalente a:
+
+```text
+match /estudantes/{uid}/avisosDiscord/{aviso} {
+  allow read: if request.auth != null && request.auth.uid == uid;
+  allow write: if false;
+}
+```
+
+O backend usa Admin SDK para gravar, portanto essa regra não bloqueia o bot.
+
 ### 🌐 Hospedar a ponte (navegador)
 
 A ponte precisa de HTTPS porque recebe a senha do SIGAA. Há dois arquivos prontos:
@@ -156,4 +214,3 @@ O projeto utiliza Firebase para autenticação e armazenamento de dados.
 Os arquivos de configuração que contenham informações específicas do ambiente não devem ser versionados no repositório.
 
 Consulte a configuração de desenvolvimento do projeto antes de executar funcionalidades que dependam do Firebase.
-

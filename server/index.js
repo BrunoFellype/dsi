@@ -13,6 +13,7 @@
 const http = require('http');
 const resumoDemo = require('./mock');
 const { ehErroDeCredencial } = require('sigaa-api/resumo');
+const { iniciarBotDiscordSeConfigurado } = require('./discord/bot');
 
 const PORT = Number(process.env.PORT) || 3333;
 const MOCK = process.env.SIGAA_MOCK === '1';
@@ -115,4 +116,5 @@ if (process.env.NODE_ENV === 'production' && ORIGEM_PERMITIDA === '*') {
 
 servidor.listen(PORT, () => {
   console.log(`Ponte ASTRA-SIGAA em http://localhost:${PORT} (${MOCK ? 'demonstração' : 'SIGAA real'})`);
+  iniciarBotDiscordSeConfigurado();
 });

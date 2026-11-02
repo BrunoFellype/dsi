@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { onAuthStateChanged } from 'firebase/auth';
+import { collection, onSnapshot } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { auth } from '../services/firebase';
+import { auth, db } from '../services/firebase';
 import { obterOuRenovarTokenClassroom } from '../services/googleSignin';
 import { buscarResumoSigaa, PONTE_PADRAO } from './api';
 import { buscarDadosGoogleClassroom } from './classroomApi';
@@ -36,6 +37,7 @@ export type Sessao = 'carregando' | 'logado' | 'demo' | 'anonimo';
 
 interface Persistido {
   avisos: Aviso[];
+  discordAvisos: Aviso[];
   manuais: Atividade[];
   /** Atividades sincronizadas da Google Classroom API. */
   classroomAtividades: Atividade[];
@@ -63,6 +65,7 @@ interface Persistido {
 
 const VAZIO: Persistido = {
   avisos: [],
+  discordAvisos: [],
   manuais: [],
   classroomAtividades: [],
   classroomDisciplinas: [],
@@ -192,11 +195,30 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     if (!chave || chave === 'demo') return;
     carregado.current = false;
     AsyncStorage.getItem(`astra:v1:${chave}`)
-      .then((bruto) => setDados(bruto ? { ...VAZIO, ...JSON.parse(bruto) } : VAZIO))
+      .then((bruto) => {
+        const salvo = bruto ? JSON.parse(bruto) : {};
+        setDados((atual) => ({
+          ...VAZIO,
+          ...salvo,
+          discordAvisos: atual.discordAvisos.length > 0 ? atual.discordAvisos : (salvo.discordAvisos ?? []),
+        }));
+      })
       .catch(() => setDados(VAZIO))
       .finally(() => {
         carregado.current = true;
       });
+  }, [chave]);
+
+  // Mensagens do bot são isoladas por estudante no Firestore e chegam em tempo real.
+  useEffect(() => {
+    if (!chave || chave === 'demo') return;
+    return onSnapshot(
+      collection(db, 'estudantes', chave, 'avisosDiscord'),
+      (snapshot) => {
+        setDados((d) => ({ ...d, discordAvisos: snapshot.docs.map((item) => item.data() as Aviso) }));
+      },
+      (erro) => console.error('Não foi possível sincronizar avisos do Discord:', erro)
+    );
   }, [chave]);
 
   // Salva a cada mudança (o modo demonstração parte sempre do zero)
@@ -483,10 +505,10 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
   const definirPonte = useCallback((url: string) => setDados((d) => ({ ...d, ponte: url.trim() })), []);
   const definirModoSigaa = useCallback((modo: 'nativo' | 'ponte') => setDados((d) => ({ ...d, modoSigaa: modo })), []);
 
-  const avisosOrdenados = useMemo(
-    () => [...dados.avisos].sort((a, b) => b.recebidoEm.localeCompare(a.recebidoEm)),
-    [dados.avisos]
-  );
+  const avisosOrdenados = useMemo(() => {
+    const porId = new Map([...dados.avisos, ...dados.discordAvisos].map((aviso) => [aviso.id, aviso]));
+    return [...porId.values()].sort((a, b) => b.recebidoEm.localeCompare(a.recebidoEm));
+  }, [dados.avisos, dados.discordAvisos]);
 
   const repetidos = useMemo(() => {
     const mapa: Record<string, Aviso[]> = {};

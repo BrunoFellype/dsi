@@ -19,6 +19,14 @@ export interface Aviso {
   categoria?: TipoAviso;
   /** Usuário responsável pela publicação (professor ou autor). */
   autor?: string;
+  discord?: {
+    mensagemId: string;
+    servidorId: string;
+    servidorNome?: string;
+    canalId: string;
+    canalNome?: string;
+    anexos: { nome?: string; url: string; tipo?: string }[];
+  };
 }
 
 export type MensagemImportada = Aviso;

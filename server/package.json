@@ -2,15 +2,17 @@
   "name": "astra-sigaa-bridge",
   "version": "1.0.0",
   "private": true,
-  "description": "Ponte entre o app ASTRA e o SIGAA da UFRPE (usa a sigaa-api-UFRPE).",
+  "description": "Backend do ASTRA para SIGAA e integração oficial com Discord.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "mock": "node mock-start.js",
-    "test": "node --test --test-force-exit teste-nativo.js"
+    "test": "node --test --test-force-exit teste-nativo.js discord/teste.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": {
+    "discord.js": "^14.25.1",
+    "firebase-admin": "^13.6.0",
     "sigaa-api": "file:../vendor/sigaa-api"
   }
 }
