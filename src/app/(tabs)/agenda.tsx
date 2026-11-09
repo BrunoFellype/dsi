@@ -22,7 +22,7 @@ import { textoHora } from '@/lib/horarios';
 import { useAstra } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme'; // <- Adicionado para usar a cor primária no tintColor
 import type { Atividade } from '@/lib/types';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable, { type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 type Filtro = 'pendentes' | 'concluidas';
 
 export default function Agenda() {
@@ -136,7 +136,7 @@ function LinhaAtividade({
   onEditar?: () => void;
 }) {
   const t = useTheme();
-  const swipeableRef = useRef<Swipeable>(null);
+  const swipeableRef = useRef<SwipeableMethods>(null);
   
   // Estado local para dar o feedback visual imediato antes de sumir
   const [concluindoLocal, setConcluindoLocal] = useState(a.concluida);
@@ -185,7 +185,7 @@ function LinhaAtividade({
   };
 
   return (
-    <Swipeable ref={swipeableRef} renderRightActions={renderAcoesDireita}>
+    <ReanimatedSwipeable ref={swipeableRef} renderRightActions={renderAcoesDireita}>
       <Cartao onPress={onEditar}>
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
           <Pressable
@@ -222,7 +222,7 @@ function LinhaAtividade({
           </View>
         </View>
       </Cartao>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 

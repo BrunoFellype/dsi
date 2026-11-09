@@ -46,7 +46,7 @@ export default function LayoutAbas() {
             title: aba.titulo,
             tabBarAccessibilityLabel: aba.titulo,
             tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons name={focused ? aba.ativo : aba.icone} size={size} color={color} />
+              <Ionicons name={focused ? aba.ativo : aba.icone} size={size} color={color as string} />
             ),
           }}
         />
