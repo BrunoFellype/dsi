@@ -20,7 +20,7 @@ import { useAstra } from '@/lib/store';
 import type { FonteId } from '@/lib/types';
 import * as Clipboard from 'expo-clipboard';
 import { useState } from 'react';
-import { RefreshControl, Switch, View } from 'react-native'; 
+import { RefreshControl, Switch, View } from 'react-native';
 
 const FONTES_MENSAGEM: FonteId[] = ['whatsapp', 'telegram', 'classroom', 'discord', 'email'];
 
@@ -56,6 +56,12 @@ export default function Fontes() {
     }, 1200);
   }
 
+  // Desconecta a conta atual do Classroom e reinicia a sincronização para permitir a seleção de outra conta
+  async function tentarComOutraConta() {
+    await desconectarClassroom();
+    void sincronizarClassroom();
+  }
+
   return (
     <Tela
       refreshControl={
@@ -86,6 +92,7 @@ export default function Fontes() {
           onDesconectar={desconectarSigaa}
         />
       </Secao>
+
       {/* Integração com o Google Classroom: conexão via OAuth, sincronização de turmas e desconexão */}
       <Secao titulo="GOOGLE CLASSROOM">
         <Cartao style={{ gap: 14 }}>
@@ -105,7 +112,19 @@ export default function Fontes() {
             />
           </View>
 
-          {statusClassroom.erro ? <Mensagem tom="erro" texto={statusClassroom.erro} /> : null}
+          {/* Exibe mensagem amigável de erro e botão para alternar a conta Google conectada */}
+          {statusClassroom.erro ? (
+            <View style={{ gap: 10 }}>
+              <Mensagem tom="erro" texto={statusClassroom.erro} />
+              <Botao
+                titulo="Tentar com outra conta Google"
+                variante="secundario"
+                icone="person-outline"
+                onPress={tentarComOutraConta}
+                desabilitado={statusClassroom.sincronizando}
+              />
+            </View>
+          ) : null}
 
           {statusClassroom.conectado && statusClassroom.ultimaSincronizacao ? (
             <Txt v="legenda" cor="textMuted">

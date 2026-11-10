@@ -1,4 +1,4 @@
-import type { Aviso, RegistroDiario, TipoAviso } from './types';
+import type { Atividade, Aviso, RegistroDiario, TipoAviso } from './types';
 
 /** Remove uma mensagem e as correções que a citavam, como origem ou como âncora. */
 export function removerAvisoEComCorrecoes(
@@ -52,4 +52,15 @@ export function editarAvisoNaLista(avisos: Aviso[], id: string, edicao: EdicaoAv
     }
     return novo;
   });
+}
+
+/**
+ * Atualiza os campos de uma atividade manual existente na lista, preservando id e fonte imutáveis.
+ */
+export function atualizarAtividadeNaLista(
+  manuais: Atividade[],
+  id: string,
+  novosDados: Partial<Omit<Atividade, 'id' | 'fonte'>>
+): Atividade[] {
+  return manuais.map((item) => (item.id === id ? { ...item, ...novosDados } : item));
 }
