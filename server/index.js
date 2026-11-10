@@ -11,6 +11,8 @@
  *   npm run mock -> usa dados de demonstração (sem credenciais)
  */
 const http = require('http');
+const { spawn } = require('child_process');
+const path = require('path');
 const resumoDemo = require('./mock');
 const { ehErroDeCredencial } = require('sigaa-api/resumo');
 
@@ -22,6 +24,8 @@ const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const LIMITE_CORPO = 10 * 1024; // 10 KB
 const JANELA_MS = 60 * 1000;
 const MAX_TENTATIVAS = 5;
+const PYTHON = process.env.PREDICTOR_PYTHON || 'python';
+const PREDICTOR_SCRIPT = path.join(__dirname, 'predictor_service.py');
 
 const tentativas = new Map(); // ip -> { n, inicio }
 
@@ -74,10 +78,64 @@ async function buscarNoSigaa(usuario, senha) {
   return buscarResumo(Sigaa, { url: SIGAA_URL, usuario, senha });
 }
 
+function buscarPredicao(dados) {
+  return new Promise((resolve, reject) => {
+    const processo = spawn(PYTHON, [PREDICTOR_SCRIPT], {
+      cwd: __dirname,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    let saida = '';
+    let erro = '';
+    const temporizador = setTimeout(() => {
+      processo.kill();
+      reject(new Error('tempo excedido'));
+    }, 120000);
+    processo.stdout.on('data', (parte) => {
+      saida += parte;
+    });
+    processo.stderr.on('data', (parte) => {
+      erro += parte;
+    });
+    processo.on('error', (falha) => {
+      clearTimeout(temporizador);
+      reject(falha);
+    });
+    processo.on('close', (codigo) => {
+      clearTimeout(temporizador);
+      if (codigo !== 0) {
+        reject(new Error(erro.trim() || `motor encerrado com código ${codigo}`));
+        return;
+      }
+      try {
+        const resposta = JSON.parse(saida.trim().split('\n').pop());
+        if (!resposta.ok) reject(new Error(resposta.erro || 'entrada inválida'));
+        else resolve(resposta.resultado);
+      } catch {
+        reject(new Error('resposta inválida do motor preditivo'));
+      }
+    });
+    processo.stdin.end(JSON.stringify({ tipo: 'prever', dados }) + '\n');
+  });
+}
+
 const servidor = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return responder(res, 204, {});
   if (req.method === 'GET' && req.url === '/saude') {
     return responder(res, 200, { ok: true, modo: MOCK ? 'demonstracao' : 'sigaa' });
+  }
+  if (req.method === 'POST' && req.url === '/predicao') {
+    try {
+      const corpo = await lerCorpo(req);
+      if (!corpo.dados || typeof corpo.dados !== 'object' || Array.isArray(corpo.dados)) {
+        return responder(res, 400, { erro: 'Informe os dados acadêmicos e comportamentais.' });
+      }
+      const resultado = await buscarPredicao(corpo.dados);
+      return responder(res, 200, { resultado });
+    } catch (erro) {
+      return responder(res, 503, {
+        erro: erro instanceof Error ? `Motor preditivo indisponível: ${erro.message}` : 'Motor preditivo indisponível.',
+      });
+    }
   }
   if (req.method !== 'POST' || req.url !== '/sigaa/resumo') {
     return responder(res, 404, { erro: 'Rota não encontrada.' });

@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
 
 import { Cabecalho, Cartao, Icone, Secao, Selo, Tela, Txt, Vazio } from '@/components/ui';
 import { alertasRotina, fmt, mediasRotina, pontosDeAtencao } from '@/lib/analise';
+import { buscarPredicao, type ResultadoPredicao } from '@/lib/predicao';
 import {
   FREQUENCIA_MINIMA,
   frequenciaDoCurso,
@@ -15,13 +16,43 @@ import { useAstra } from '@/lib/store';
 import type { HistoricoDisciplina } from '@/lib/types';
 
 export default function Desempenho() {
-  const { sigaa, diario } = useAstra();
+  const { sigaa, diario, ponte } = useAstra();
+  const [predicao, setPredicao] = useState<ResultadoPredicao | null>(null);
+  const [erroPredicao, setErroPredicao] = useState('');
   const medias = mediasRotina(diario);
   const alertasDaRotina = alertasRotina(medias);
   const atencao = pontosDeAtencao(sigaa?.historico ?? []);
   const freqPeriodo = sigaa ? frequenciaDoPeriodo(sigaa.disciplinas) : null;
   const freqCurso = sigaa ? frequenciaDoCurso(sigaa.historico, sigaa.disciplinas) : null;
   const freqTurmas = sigaa ? frequenciaPorDisciplina(sigaa.disciplinas) : [];
+
+  useEffect(() => {
+    if (!medias && !freqPeriodo) {
+      setPredicao(null);
+      setErroPredicao('');
+      return;
+    }
+    let ativo = true;
+    setErroPredicao('');
+    buscarPredicao(ponte, {
+      study_hours_per_day: medias?.estudo,
+      sleep_hours: medias?.sono,
+      mental_stress_level: medias?.estresse,
+      class_attendance_percent: freqPeriodo?.percentual,
+    })
+      .then((resultado) => {
+        if (ativo) setPredicao(resultado);
+      })
+      .catch((erro: Error) => {
+        if (ativo) {
+          setPredicao(null);
+          setErroPredicao(erro.message);
+        }
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [ponte, medias?.estudo, medias?.sono, medias?.estresse, freqPeriodo?.percentual]);
 
   if (!sigaa && diario.length === 0) {
     return (
@@ -61,6 +92,25 @@ export default function Desempenho() {
             </Cartao>
           ))}
         </View>
+      ) : null}
+
+      {medias || freqPeriodo ? (
+        <Secao titulo="Previsão de desempenho">
+          <Cartao>
+            {predicao ? (
+              <>
+                <Txt style={{ fontSize: 32, fontWeight: '800' }}>{fmt(predicao.gpa)} GPA</Txt>
+                <Txt v="legenda" cor="textSecondary">
+                  {predicao.modelo} · {predicao.perfil}
+                </Txt>
+              </>
+            ) : (
+              <Txt v="legenda" cor="textSecondary">
+                {erroPredicao || 'Calculando a previsão...'}
+              </Txt>
+            )}
+          </Cartao>
+        </Secao>
       ) : null}
 
       {freqPeriodo || freqCurso ? (
