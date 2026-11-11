@@ -44,3 +44,14 @@ export const Colors = {
 } as const;
 
 export type ThemeColors = { [K in keyof typeof Colors.light]: string };
+
+export const AccentColors = {
+  original: { nome: 'Azul original', amostra: '#2A6595', light: '#2A6595', dark: '#7DB8DE' },
+  verde: { nome: 'Verde', amostra: '#166534', light: '#166534', dark: '#86EFAC' },
+  roxo: { nome: 'Roxo', amostra: '#6B21A8', light: '#6B21A8', dark: '#C084FC' },
+  violeta: { nome: 'Violeta', amostra: '#5B21B6', light: '#5B21B6', dark: '#A78BFA' },
+  turquesa: { nome: 'Azul-turquesa', amostra: '#0F766E', light: '#0F766E', dark: '#5EEAD4' },
+  ambar: { nome: 'Âmbar', amostra: '#92400E', light: '#92400E', dark: '#FCD34D' },
+} as const;
+
+export type AccentColor = keyof typeof AccentColors;

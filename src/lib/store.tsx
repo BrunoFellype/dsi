@@ -3,6 +3,8 @@ import { onAuthStateChanged } from 'firebase/auth';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { auth } from '../services/firebase';
+import type { AccentColor } from '@/constants/colors';
+import { AparenciaContext, type ModoAparencia } from '@/hooks/appearance-context';
 import { obterOuRenovarTokenClassroom } from '../services/googleSignin';
 import { buscarResumoSigaa, PONTE_PADRAO } from './api';
 import { buscarDadosGoogleClassroom } from './classroomApi';
@@ -33,6 +35,19 @@ import { precisaAtualizar } from './sync';
 import type { Atividade, Aviso, Disciplina, FonteId, RegistroDiario, ResumoSigaa, StatusClassroom } from './types';
 
 export type Sessao = 'carregando' | 'logado' | 'demo' | 'anonimo';
+export type { ModoAparencia } from '@/hooks/appearance-context';
+
+const CHAVE_APARENCIA = 'astra:aparencia:v1';
+const MODOS_APARENCIA: ModoAparencia[] = ['claro', 'escuro', 'automatico'];
+const CORES_DESTAQUE: AccentColor[] = ['original', 'verde', 'roxo', 'violeta', 'turquesa', 'ambar'];
+
+function eModoAparencia(valor: unknown): valor is ModoAparencia {
+  return typeof valor === 'string' && MODOS_APARENCIA.includes(valor as ModoAparencia);
+}
+
+function eCorDestaque(valor: unknown): valor is AccentColor {
+  return typeof valor === 'string' && CORES_DESTAQUE.includes(valor as AccentColor);
+}
 
 interface Persistido {
   avisos: Aviso[];
@@ -85,6 +100,10 @@ const VAZIO: Persistido = {
 };
 
 interface Contexto extends Persistido {
+  modoAparencia: ModoAparencia;
+  corDestaque: AccentColor;
+  definirModoAparencia: (modo: ModoAparencia) => void;
+  definirCorDestaque: (cor: AccentColor) => void;
   sessao: Sessao;
   nome: string;
   atividades: Atividade[];
@@ -144,6 +163,9 @@ function tituloDoAviso(texto: string): string {
 }
 
 export function AstraProvider({ children }: { children: React.ReactNode }) {
+  const [modoAparencia, setModoAparencia] = useState<ModoAparencia>('automatico');
+  const [corDestaque, setCorDestaque] = useState<AccentColor>('original');
+  const [preferenciasAparenciaCarregadas, setPreferenciasAparenciaCarregadas] = useState(false);
   const [sessao, setSessao] = useState<Sessao>('carregando');
   const [chave, setChave] = useState<string | null>(null);
   const [nome, setNome] = useState('');
@@ -152,6 +174,29 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
   const modoDemo = useRef(false);
   const [sincronizando, setSincronizando] = useState(false);
   const [erroSync, setErroSync] = useState('');
+
+  useEffect(() => {
+    AsyncStorage.getItem(CHAVE_APARENCIA)
+      .then((bruto) => {
+        if (!bruto) return;
+        const preferencias: unknown = JSON.parse(bruto);
+        if (!preferencias || typeof preferencias !== 'object') return;
+        const dadosAparencia = preferencias as { modo?: unknown; cor?: unknown };
+        if (eModoAparencia(dadosAparencia.modo)) setModoAparencia(dadosAparencia.modo);
+        if (eCorDestaque(dadosAparencia.cor)) setCorDestaque(dadosAparencia.cor);
+      })
+      .catch(() => console.warn('Não foi possível carregar as preferências de aparência.'))
+      .finally(() => setPreferenciasAparenciaCarregadas(true));
+  }, []);
+
+  useEffect(() => {
+    if (!preferenciasAparenciaCarregadas) return;
+    AsyncStorage.setItem(CHAVE_APARENCIA, JSON.stringify({ modo: modoAparencia, cor: corDestaque }))
+      .catch(() => console.warn('Não foi possível salvar as preferências de aparência.'));
+  }, [corDestaque, modoAparencia, preferenciasAparenciaCarregadas]);
+
+  const definirModoAparencia = useCallback((modo: ModoAparencia) => setModoAparencia(modo), []);
+  const definirCorDestaque = useCallback((cor: AccentColor) => setCorDestaque(cor), []);
 
   // Referência sempre atual para funções que não podem depender do estado (evita recriá-las)
   const dadosRef = useRef(dados);
@@ -656,6 +701,10 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
 
   const valor: Contexto = {
     ...dados,
+    modoAparencia,
+    corDestaque,
+    definirModoAparencia,
+    definirCorDestaque,
     avisos: avisosOrdenados,
     sessao,
     nome,
@@ -692,7 +741,11 @@ export function AstraProvider({ children }: { children: React.ReactNode }) {
     desconectarClassroom,
   };
 
-  return <AstraContext.Provider value={valor}>{children}</AstraContext.Provider>;
+  return (
+    <AparenciaContext.Provider value={{ modoAparencia, corDestaque }}>
+      <AstraContext.Provider value={valor}>{children}</AstraContext.Provider>
+    </AparenciaContext.Provider>
+  );
 }
 
 export function useAstra(): Contexto {

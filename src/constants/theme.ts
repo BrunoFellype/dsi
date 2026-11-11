@@ -1,6 +1,11 @@
 import '@/global.css';
 
-export { Colors, type ThemeColors } from './colors';
+export {
+  Colors,
+  AccentColors,
+  type AccentColor,
+  type ThemeColors,
+} from './colors';
 
 export const Spacing = {
   xs: 4,

@@ -5,8 +5,9 @@ import { router } from 'expo-router';
 import { deleteUser, signOut, updateProfile, verifyBeforeUpdateEmail } from 'firebase/auth';
 import { deleteDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
 
-import { NAO_INFORMADO_TEXTO, Seletor } from '@/components/seletor';
-import { Botao, Cabecalho, Campo, Cartao, Icone, Mensagem, Selo, Tela, Txt, type IconName } from '@/components/ui';
+import { NAO_INFORMADO_TEXTO } from '@/components/seletor';
+import { Botao, Cabecalho, Campo, Cartao, Icone, Mensagem, Tela, Txt, type IconName } from '@/components/ui';
+import { AccentColors, type AccentColor } from '@/constants/colors';
 import { CURSOS, PERIODOS } from '@/lib/opcoes';
 import { useTheme } from '@/hooks/use-theme';
 import { lembretesDisponiveis } from '@/lib/lembretes';
@@ -18,7 +19,18 @@ const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type CampoEditando = 'nome' | 'email' | 'curso' | 'periodo' | null;
 
 export default function Perfil() {
-  const { sessao, sair, lembretes, alternarLembretes, resumoDiario, alternarResumoDiario } = useAstra();
+  const {
+    sessao,
+    sair,
+    lembretes,
+    alternarLembretes,
+    resumoDiario,
+    alternarResumoDiario,
+    modoAparencia,
+    corDestaque,
+    definirModoAparencia,
+    definirCorDestaque,
+  } = useAstra();
   const t = useTheme();
 
   const usuario = auth.currentUser;
@@ -36,6 +48,7 @@ export default function Perfil() {
   const [campoAtivo, setCampoAtivo] = useState<CampoEditando>(null);
   const [tempValor, setTempValor] = useState('');
   const [buscaCurso, setBuscaCurso] = useState('');
+  const [coresAbertas, setCoresAbertas] = useState(false);
 
   const iniciais = nome
     .trim()
@@ -275,6 +288,56 @@ export default function Perfil() {
         onResumo={alternarResumoDiario}
       />
 
+      <Cartao style={{ gap: 16 }}>
+        <Txt v="subtitulo">Aparência</Txt>
+        <View style={{ gap: 8 }}>
+          <Txt v="legenda" cor="textSecondary">
+            Tema do aplicativo
+          </Txt>
+          {([
+            ['claro', 'Claro'],
+            ['escuro', 'Escuro'],
+            ['automatico', 'Automático'],
+          ] as const).map(([modo, rotulo]) => (
+            <Pressable
+              key={modo}
+              onPress={() => definirModoAparencia(modo)}
+              accessibilityRole="radio"
+              accessibilityLabel={rotulo}
+              accessibilityState={{ selected: modoAparencia === modo }}
+              style={{
+                minHeight: 44,
+                paddingHorizontal: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: modoAparencia === modo ? t.primary : t.border,
+                backgroundColor: modoAparencia === modo ? t.primarySoft : t.surface,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Txt cor={modoAparencia === modo ? 'primary' : 'text'} style={{ fontWeight: '600' }}>
+                {rotulo}
+              </Txt>
+              {modoAparencia === modo ? <Icone nome="checkmark-outline" tamanho={20} cor="primary" /> : null}
+            </Pressable>
+          ))}
+        </View>
+        <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
+        <View style={{ gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt v="subtitulo">Personalização de cores</Txt>
+              <Txt v="legenda" cor="textSecondary">
+                Cor de destaque: {AccentColors[corDestaque].nome}
+              </Txt>
+            </View>
+            <Botao titulo="Modificar" variante="secundario" onPress={() => setCoresAbertas(true)} />
+          </View>
+        </View>
+      </Cartao>
+
       {/* ZONA DE CONTA E SEGURANÇA */}
       <Cartao style={{ gap: 12 }}>
         <Txt v="subtitulo">Ações da conta</Txt>
@@ -415,6 +478,69 @@ export default function Perfil() {
                 </View>
               </ScrollView>
             ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={coresAbertas}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setCoresAbertas(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setCoresAbertas(false)} />
+          <View
+            style={{
+              backgroundColor: t.background,
+              padding: 20,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              gap: 16,
+            }}
+          >
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Txt v="subtitulo">Modificar cor de destaque</Txt>
+              <Pressable onPress={() => setCoresAbertas(false)} hitSlop={10}>
+                <Icone nome="close-outline" tamanho={24} cor="textMuted" />
+              </Pressable>
+            </View>
+            <View style={{ gap: 8 }}>
+              {(Object.keys(AccentColors) as AccentColor[]).map((cor) => (
+                <Pressable
+                  key={cor}
+                  onPress={() => definirCorDestaque(cor)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={AccentColors[cor].nome}
+                  accessibilityState={{ selected: corDestaque === cor }}
+                  style={{
+                    minHeight: 48,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: corDestaque === cor ? t.primary : t.border,
+                    backgroundColor: corDestaque === cor ? t.primarySoft : t.surface,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <View
+                    accessibilityLabel={`Amostra: ${AccentColors[cor].nome}`}
+                    style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: AccentColors[cor].amostra }}
+                  />
+                  <Txt cor={corDestaque === cor ? 'primary' : 'text'} style={{ flex: 1, fontWeight: '600' }}>
+                    {AccentColors[cor].nome}
+                  </Txt>
+                  {corDestaque === cor ? <Icone nome="checkmark-outline" tamanho={20} cor="primary" /> : null}
+                </Pressable>
+              ))}
+            </View>
+            <Botao
+              titulo="Restaurar cores originais"
+              variante="texto"
+              onPress={() => definirCorDestaque('original')}
+            />
           </View>
         </View>
       </Modal>
