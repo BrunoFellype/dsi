@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AstraProvider } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
@@ -29,8 +30,10 @@ function Raiz() {
 
 export default function RootLayout() {
   return (
-    <AstraProvider>
-      <Raiz />
-    </AstraProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AstraProvider>
+        <Raiz />
+      </AstraProvider>
+    </GestureHandlerRootView>
   );
 }

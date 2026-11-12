@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, Switch, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Switch, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { deleteUser, signOut, updateProfile, verifyBeforeUpdateEmail } from 'firebase/auth';
-import { deleteDoc, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import * as ImagePicker from 'expo-image-picker';
 
 import { NAO_INFORMADO_TEXTO } from '@/components/seletor';
 import { Botao, Cabecalho, Campo, Cartao, Icone, Mensagem, Tela, Txt, type IconName } from '@/components/ui';
@@ -36,6 +37,7 @@ export default function Perfil() {
   const usuario = auth.currentUser;
   const [nome, setNome] = useState(usuario?.displayName ?? 'Estudante');
   const [email, setEmail] = useState(usuario?.email ?? '');
+  const [fotoUrl, setFotoUrl] = useState(usuario?.photoURL ?? null);
   const [curso, setCurso] = useState('');
   const [periodo, setPeriodo] = useState('');
 
@@ -65,6 +67,9 @@ export default function Perfil() {
         if (snap.exists()) {
           setCurso(snap.data().curso ?? '');
           setPeriodo(snap.data().periodo ?? '');
+          if (snap.data().photoURL) {
+            setFotoUrl(snap.data().photoURL);
+          }
         }
       })
       .catch(() => setErro('Não foi possível carregar o perfil.'))
@@ -73,13 +78,126 @@ export default function Perfil() {
 
   // Lista de cursos filtrada pela busca em tempo real
   const cursosFiltrados = useMemo(() => {
-    const listaBase = tempValor && tempValor !== NAO_INFORMADO_TEXTO && !CURSOS.includes(tempValor)
-      ? [tempValor, ...CURSOS]
-      : CURSOS;
+    const listaBase =
+      tempValor && tempValor !== NAO_INFORMADO_TEXTO && !CURSOS.includes(tempValor)
+        ? [tempValor, ...CURSOS]
+        : CURSOS;
 
     if (!buscaCurso.trim()) return listaBase;
     return listaBase.filter((c) => c.toLowerCase().includes(buscaCurso.trim().toLowerCase()));
   }, [buscaCurso, tempValor]);
+
+  // --- CRUD DA FOTO DE PERFIL ---
+
+  async function alterarFotoPerfil() {
+    try {
+      const permissao = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissao.granted) {
+        setErro('Precisamos de permissão para acessar sua galeria de fotos.');
+        return;
+      }
+
+      const resultado = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7, // Qualidade otimizada para envio rápido
+        base64: true, // Necessário para o ImgBB receber em string
+      });
+
+      if (resultado.canceled || !resultado.assets[0].base64) return;
+
+      setErro('');
+      setSucesso('');
+      setSalvando(true);
+
+      const imagemBase64 = resultado.assets[0].base64;
+      const apiKeyImgBB = process.env.EXPO_PUBLIC_IMGBB_KEY;
+
+      if (!apiKeyImgBB) {
+        throw new Error('Chave da API do ImgBB não configurada nas variáveis de ambiente.');
+      }
+      // Prepara os dados para enviar via POST para a API do ImgBB
+      const formData = new FormData();
+      formData.append('key', apiKeyImgBB);
+      formData.append('image', imagemBase64);
+
+      // Faz o upload para o ImgBB
+      const respostaUpload = await fetch('https://api.imgbb.com/1/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const dadosJson = await respostaUpload.json();
+
+      if (!dadosJson.success) {
+        throw new Error('Falha no upload para o serviço externo.');
+      }
+
+      // Pega a URL pública e permanente da imagem hospedada gratuitamente
+      const urlPublica = dadosJson.data.url;
+
+      if (!usuario) return;
+
+      // Salva a URL curta no Firestore e no perfil
+      await updateDoc(doc(db, 'perfisAprendizagem', usuario.uid), { photoURL: urlPublica });
+      await updateDoc(doc(db, 'estudantes', usuario.uid), { photoURL: urlPublica }).catch(() => {});
+      await updateProfile(usuario, { photoURL: urlPublica }).catch(() => {});
+
+      setFotoUrl(urlPublica);
+      setSucesso('Foto de perfil atualizada com sucesso!');
+    } catch (e: any) {
+      console.error('Erro ao alterar foto:', e);
+      setErro('Não foi possível enviar a foto. Verifique sua conexão.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function deletarFotoPerfil() {
+    if (!usuario) return;
+    try {
+      setErro('');
+      setSucesso('');
+      setSalvando(true);
+
+      await updateDoc(doc(db, 'perfisAprendizagem', usuario.uid), { photoURL: null });
+      await updateDoc(doc(db, 'estudantes', usuario.uid), { photoURL: null }).catch(() => {});
+      await updateProfile(usuario, { photoURL: '' }).catch(() => {});
+
+      setFotoUrl(null);
+      setSucesso('Foto de perfil removida com sucesso!');
+    } catch (e) {
+      console.error('Erro ao remover foto:', e);
+      setErro('Não foi possível remover a foto.');
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  function menuFotoPerfil() {
+    if (typeof window !== 'undefined' && window.confirm) {
+      if (fotoUrl) {
+        const opcao = window.confirm('Escolha uma opção:\n\nClique OK para alterar a foto ou Cancelar para remover a foto atual.');
+        if (opcao) alterarFotoPerfil();
+        else deletarFotoPerfil();
+      } else {
+        alterarFotoPerfil();
+      }
+      return;
+    }
+
+    const botoes: any[] = [
+      { text: 'Escolher da Galeria', onPress: alterarFotoPerfil },
+      { text: 'Cancelar', style: 'cancel' },
+    ];
+
+    if (fotoUrl) {
+      botoes.unshift({ text: 'Remover Foto Atual', style: 'destructive', onPress: deletarFotoPerfil });
+    }
+
+    Alert.alert('Foto de Perfil', 'O que deseja fazer com sua foto?', botoes);
+  }
 
   async function salvarAlteracao(novoCurso?: string, novoPeriodo?: string) {
     if (!usuario) return router.replace('/login');
@@ -166,25 +284,18 @@ export default function Perfil() {
       await deleteUser(usuario);
       sair();
       router.replace('/login');
-    } catch (erro:any) {
+    } catch (erro: any) {
       if (erro.code === 'auth/requires-recent-login') {
-          setErro(
-            'Por segurança, você precisa entrar novamente antes de excluir sua conta.'
-          );
-        } else if (erro.code === 'permission-denied') {
-          setErro(
-            'Você não possui permissão para excluir os dados desta conta.'
-          );
-        } else {
-      setErro(
-        `Não foi possível excluir a conta.`
-      );
-    }
+        setErro('Por segurança, você precisa entrar novamente antes de excluir sua conta.');
+      } else if (erro.code === 'permission-denied') {
+        setErro('Você não possui permissão para excluir os dados desta conta.');
+      } else {
+        setErro(`Não foi possível excluir a conta.`);
+      }
     }
   }
 
   function confirmarExclusao(titulo: string, texto: string, acao: () => void) {
-    // Se estiver rodando na Web, usa o confirm nativo do navegador
     if (typeof window !== 'undefined' && window.confirm) {
       const confirmado = window.confirm(`${titulo}\n\n${texto}`);
       if (confirmado) {
@@ -193,7 +304,6 @@ export default function Perfil() {
       return;
     }
 
-    // No mobile nativo, usa o Alert do React Native
     Alert.alert(titulo, texto, [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Excluir', style: 'destructive', onPress: acao },
@@ -212,215 +322,316 @@ export default function Perfil() {
   }
 
   return (
-    <Tela>
-      <Cabecalho titulo="" voltar={() => router.back()} />
-
-      {/* CABEÇALHO DO USUÁRIO CENTRALIZADO */}
-      <View style={{ alignItems: 'center', marginVertical: 8, gap: 6 }}>
-        <View
-          style={{
-            width: 84,
-            height: 84,
-            borderRadius: 42,
-            backgroundColor: t.primary,
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}
+    <Tela style={{ padding: 0 }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: 40 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          <Txt style={{ color: '#fff', fontSize: 30, fontWeight: '700' }}>{iniciais || 'A'}</Txt>
-        </View>
+          <Cabecalho titulo="" voltar={() => router.back()} />
 
-        <Txt v="subtitulo" style={{ fontSize: 20, fontWeight: '700' }}>
-          {nome}
-        </Txt>
+          {/* CABEÇALHO DO USUÁRIO CENTRALIZADO COM AVATAR INTERATIVO */}
+          <View style={{ alignItems: 'center', marginVertical: 8, gap: 6 }}>
+            <Pressable onPress={menuFotoPerfil} style={{ position: 'relative' }}>
+              <View
+                style={{
+                  width: 88,
+                  height: 88,
+                  borderRadius: 44,
+                  backgroundColor: t.primary,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  overflow: 'hidden',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 3,
+                }}
+              >
+                {fotoUrl ? (
+                  <Image source={{ uri: fotoUrl }} style={{ width: '100%', height: '100%' }} />
+                ) : (
+                  <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                    <Txt
+                      style={{
+                        color: '#fff',
+                        fontSize: 32,
+                        fontWeight: '700',
+                        lineHeight: 38,
+                        textAlign: 'center',
+                        includeFontPadding: false,
+                      }}
+                    >
+                      {iniciais || 'A'}
+                    </Txt>
+                  </View>
+                )}
+              </View>
 
-        {email ? (
-          <Txt v="legenda" cor="textSecondary">
-            {email}
-          </Txt>
-        ) : null}
-      </View>
+              {/* BOTÃO FLUTUANTE DE CÂMERA */}
+              <View
+                style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  right: 0,
+                  backgroundColor: t.surface,
+                  borderRadius: 14,
+                  padding: 6,
+                  borderWidth: 2,
+                  borderColor: t.background,
+                  elevation: 4,
+                }}
+              >
+                <Icone nome="camera-outline" tamanho={16} cor="primary" />
+              </View>
+            </Pressable>
 
-      {erro ? <Mensagem tom="erro" texto={erro} /> : null}
-      {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
+            <Txt v="subtitulo" style={{ fontSize: 20, fontWeight: '700' }}>
+              {nome}
+            </Txt>
 
-      {/* CÉLULAS INDIVIDUAIS DE INFORMAÇÕES */}
-      <Cartao style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
-        <LinhaInfo
-          icone="person-outline"
-          rotulo="Nome"
-          valor={nome}
-          onPress={() => abrirEdicao('nome', nome)}
-        />
-        <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
-        <LinhaInfo
-          icone="mail-outline"
-          rotulo="E-mail"
-          valor={email}
-          onPress={() => abrirEdicao('email', email)}
-        />
-        <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
-        <LinhaInfo
-          icone="school-outline"
-          rotulo="Curso"
-          valor={curso || NAO_INFORMADO_TEXTO}
-          onPress={() => abrirEdicao('curso', curso)}
-        />
-        <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
-        <LinhaInfo
-          icone="calendar-outline"
-          rotulo="Período"
-          valor={periodo || NAO_INFORMADO_TEXTO}
-          onPress={() => abrirEdicao('periodo', periodo)}
-        />
-      </Cartao>
+            {email ? (
+              <Txt v="legenda" cor="textSecondary">
+                {email}
+              </Txt>
+            ) : null}
+          </View>
 
-      {/* CONFIGURAÇÕES DE NOTIFICAÇÕES */}
-      <CartaoLembretes
-        lembretes={lembretes}
-        resumoDiario={resumoDiario}
-        onLembretes={alternarLembretes}
-        onResumo={alternarResumoDiario}
-      />
+          {erro ? <Mensagem tom="erro" texto={erro} /> : null}
+          {sucesso ? <Mensagem tom="sucesso" texto={sucesso} /> : null}
 
-      <Cartao style={{ gap: 16 }}>
-        <Txt v="subtitulo">Aparência</Txt>
-        <View style={{ gap: 8 }}>
-          <Txt v="legenda" cor="textSecondary">
-            Tema do aplicativo
-          </Txt>
-          {([
-            ['claro', 'Claro'],
-            ['escuro', 'Escuro'],
-            ['automatico', 'Automático'],
-          ] as const).map(([modo, rotulo]) => (
-            <Pressable
-              key={modo}
-              onPress={() => definirModoAparencia(modo)}
-              accessibilityRole="radio"
-              accessibilityLabel={rotulo}
-              accessibilityState={{ selected: modoAparencia === modo }}
+          {/* CÉLULAS INDIVIDUAIS DE INFORMAÇÕES */}
+          <Cartao style={{ paddingVertical: 4, paddingHorizontal: 16 }}>
+            <LinhaInfo
+              icone="person-outline"
+              rotulo="Nome"
+              valor={nome}
+              onPress={() => abrirEdicao('nome', nome)}
+            />
+            <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
+            <LinhaInfo
+              icone="mail-outline"
+              rotulo="E-mail"
+              valor={email}
+              onPress={() => abrirEdicao('email', email)}
+            />
+            <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
+            <LinhaInfo
+              icone="school-outline"
+              rotulo="Curso"
+              valor={curso || NAO_INFORMADO_TEXTO}
+              onPress={() => abrirEdicao('curso', curso)}
+            />
+            <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
+            <LinhaInfo
+              icone="calendar-outline"
+              rotulo="Período"
+              valor={periodo || NAO_INFORMADO_TEXTO}
+              onPress={() => abrirEdicao('periodo', periodo)}
+            />
+          </Cartao>
+
+          {/* CONFIGURAÇÕES DE NOTIFICAÇÕES */}
+          <CartaoLembretes
+            lembretes={lembretes}
+            resumoDiario={resumoDiario}
+            onLembretes={alternarLembretes}
+            onResumo={alternarResumoDiario}
+          />
+
+          <Cartao style={{ gap: 16 }}>
+            <Txt v="subtitulo">Aparência</Txt>
+            <View style={{ gap: 8 }}>
+              <Txt v="legenda" cor="textSecondary">
+                Tema do aplicativo
+              </Txt>
+              {(
+                [
+                  ['claro', 'Claro'],
+                  ['escuro', 'Escuro'],
+                  ['automatico', 'Automático'],
+                ] as const
+              ).map(([modo, rotulo]) => (
+                <Pressable
+                  key={modo}
+                  onPress={() => definirModoAparencia(modo)}
+                  accessibilityRole="radio"
+                  accessibilityLabel={rotulo}
+                  accessibilityState={{ selected: modoAparencia === modo }}
+                  style={{
+                    minHeight: 44,
+                    paddingHorizontal: 12,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: modoAparencia === modo ? t.primary : t.border,
+                    backgroundColor: modoAparencia === modo ? t.primarySoft : t.surface,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <Txt cor={modoAparencia === modo ? 'primary' : 'text'} style={{ fontWeight: '600' }}>
+                    {rotulo}
+                  </Txt>
+                  {modoAparencia === modo ? <Icone nome="checkmark-outline" tamanho={20} cor="primary" /> : null}
+                </Pressable>
+              ))}
+            </View>
+            <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
+            <View style={{ gap: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt v="subtitulo">Personalização de cores</Txt>
+                  <Txt v="legenda" cor="textSecondary">
+                    Cor de destaque: {AccentColors[corDestaque].nome}
+                  </Txt>
+                </View>
+                <Botao titulo="Modificar" variante="secundario" onPress={() => setCoresAbertas(true)} />
+              </View>
+            </View>
+          </Cartao>
+
+          {/* ZONA DE CONTA E SEGURANÇA */}
+          <Cartao style={{ gap: 12 }}>
+            <Txt v="subtitulo">Ações da conta</Txt>
+            <Txt v="legenda">
+              Excluir o perfil apenas reseta suas configurações e exige um novo onboarding; excluir a conta apaga tudo permanentemente.
+            </Txt>
+            <Botao
+              titulo="Excluir perfil de aprendizagem"
+              variante="perigo"
+              desabilitado={salvando}
+              onPress={() =>
+                confirmarExclusao('Excluir perfil?', 'Seu curso e período serão apagados.', excluirPerfil)
+              }
+            />
+            <Botao
+              titulo="Excluir minha conta"
+              variante="perigo"
+              desabilitado={salvando}
+              onPress={() =>
+                confirmarExclusao(
+                  'Excluir conta?',
+                  'Sua conta, seu perfil e os dados deste aparelho serão apagados. Não dá para desfazer.',
+                  excluirConta
+                )
+              }
+            />
+          </Cartao>
+
+          <Botao titulo="Sair da conta" icone="log-out-outline" variante="perigo" onPress={sairDaConta} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* MODAL DE EDIÇÃO DIRETA (AJUSTADO PARA AJUSTAR COM O TECLADO) */}
+      <Modal
+        visible={campoAtivo !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCampoAtivo(null)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <Pressable style={{ flex: 1 }} onPress={() => setCampoAtivo(null)} />
+
+            <View
               style={{
-                minHeight: 44,
-                paddingHorizontal: 12,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: modoAparencia === modo ? t.primary : t.border,
-                backgroundColor: modoAparencia === modo ? t.primarySoft : t.surface,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                backgroundColor: t.background,
+                padding: 20,
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                gap: 16,
+                maxHeight: '80%',
               }}
             >
-              <Txt cor={modoAparencia === modo ? 'primary' : 'text'} style={{ fontWeight: '600' }}>
-                {rotulo}
-              </Txt>
-              {modoAparencia === modo ? <Icone nome="checkmark-outline" tamanho={20} cor="primary" /> : null}
-            </Pressable>
-          ))}
-        </View>
-        <View style={{ height: 1, backgroundColor: t.border, opacity: 0.4 }} />
-        <View style={{ gap: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <View style={{ flex: 1, gap: 2 }}>
-              <Txt v="subtitulo">Personalização de cores</Txt>
-              <Txt v="legenda" cor="textSecondary">
-                Cor de destaque: {AccentColors[corDestaque].nome}
-              </Txt>
-            </View>
-            <Botao titulo="Modificar" variante="secundario" onPress={() => setCoresAbertas(true)} />
-          </View>
-        </View>
-      </Cartao>
-
-      {/* ZONA DE CONTA E SEGURANÇA */}
-      <Cartao style={{ gap: 12 }}>
-        <Txt v="subtitulo">Ações da conta</Txt>
-        <Txt v="legenda">
-          Excluir o perfil apenas reseta suas configurações e exige um novo onboarding; excluir a conta apaga tudo permanentemente.
-        </Txt>
-        <Botao
-          titulo="Excluir perfil de aprendizagem"
-          variante="perigo"
-          desabilitado={salvando}
-          onPress={() =>
-            confirmarExclusao('Excluir perfil?', 'Seu curso e período serão apagados.', excluirPerfil)
-          }
-        />
-        <Botao
-          titulo="Excluir minha conta"
-          variante="perigo"
-          desabilitado={salvando}
-          onPress={() =>
-            confirmarExclusao(
-              'Excluir conta?',
-              'Sua conta, seu perfil e os dados deste aparelho serão apagados. Não dá para desfazer.',
-              excluirConta
-            )
-          }
-        />
-      </Cartao>
-
-      <Botao titulo="Sair da conta" icone="log-out-outline" variante="perigo" onPress={sairDaConta} />
-      
-      {/* MODAL DE EDIÇÃO DIRETA (SLIDE BOTTOM SHEET) */}
-      <Modal visible={campoAtivo !== null} animationType="slide" transparent={true} onRequestClose={() => setCampoAtivo(null)}>
-        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          {/* Fundo escuro clicável para fechar ao tocar fora */}
-          <Pressable style={{ flex: 1 }} onPress={() => setCampoAtivo(null)} />
-
-          {/* Conteúdo do Modal */}
-          <View style={{ backgroundColor: t.background, padding: 20, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 16, maxHeight: '80%' }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Txt v="subtitulo" style={{ fontSize: 18 }}>
-                {campoAtivo === 'nome' && 'Editar Nome'}
-                {campoAtivo === 'email' && 'Editar E-mail'}
-                {campoAtivo === 'curso' && 'Selecionar Curso'}
-                {campoAtivo === 'periodo' && 'Selecionar Período'}
-              </Txt>
-              <Pressable onPress={() => setCampoAtivo(null)} hitSlop={10}>
-                <Icone nome="close-outline" tamanho={24} cor="textMuted" />
-              </Pressable>
-            </View>
-
-            {/* EDIÇÃO DE NOME E E-MAIL */}
-            {campoAtivo === 'nome' || campoAtivo === 'email' ? (
-              <View style={{ gap: 12 }}>
-                <Campo
-                  rotulo={campoAtivo === 'nome' ? 'Seu nome' : 'Seu e-mail'}
-                  value={tempValor}
-                  onChangeText={setTempValor}
-                  autoFocus={true}
-                  keyboardType={campoAtivo === 'email' ? 'email-address' : 'default'}
-                  autoCapitalize={campoAtivo === 'email' ? 'none' : 'words'}
-                />
-                <Botao titulo="Salvar alteração" onPress={() => salvarAlteracao()} carregando={salvando} />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Txt v="subtitulo" style={{ fontSize: 18 }}>
+                  {campoAtivo === 'nome' && 'Editar Nome'}
+                  {campoAtivo === 'email' && 'Editar E-mail'}
+                  {campoAtivo === 'curso' && 'Selecionar Curso'}
+                  {campoAtivo === 'periodo' && 'Selecionar Período'}
+                </Txt>
+                <Pressable onPress={() => setCampoAtivo(null)} hitSlop={10}>
+                  <Icone nome="close-outline" tamanho={24} cor="textMuted" />
+                </Pressable>
               </View>
-            ) : null}
 
-            {/* EDIÇÃO DE CURSO COM BUSCA E ROLAGEM */}
-            {campoAtivo === 'curso' ? (
-              <View style={{ gap: 12, flexShrink: 1 }}>
-                <Campo
-                  rotulo="Buscar curso"
-                  value={buscaCurso}
-                  onChangeText={setBuscaCurso}
-                  placeholder="Digite para filtrar..."
-                  autoFocus={true}
-                />
+              {campoAtivo === 'nome' || campoAtivo === 'email' ? (
+                <View style={{ gap: 12 }}>
+                  <Campo
+                    rotulo={campoAtivo === 'nome' ? 'Seu nome' : 'Seu e-mail'}
+                    value={tempValor}
+                    onChangeText={setTempValor}
+                    autoFocus={true}
+                    keyboardType={campoAtivo === 'email' ? 'email-address' : 'default'}
+                    autoCapitalize={campoAtivo === 'email' ? 'none' : 'words'}
+                  />
+                  <Botao titulo="Salvar alteração" onPress={() => salvarAlteracao()} carregando={salvando} />
+                </View>
+              ) : null}
+
+              {campoAtivo === 'curso' ? (
+                <View style={{ gap: 12, flexShrink: 1 }}>
+                  <Campo
+                    rotulo="Buscar curso"
+                    value={buscaCurso}
+                    onChangeText={setBuscaCurso}
+                    placeholder="Digite para filtrar..."
+                    autoFocus={true}
+                  />
+                  <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
+                    <View style={{ gap: 8 }}>
+                      {cursosFiltrados.map((item) => (
+                        <Pressable
+                          key={item}
+                          onPress={() => {
+                            setTempValor(item);
+                            salvarAlteracao(item, undefined);
+                          }}
+                          style={{
+                            paddingVertical: 12,
+                            paddingHorizontal: 16,
+                            borderRadius: 8,
+                            backgroundColor: tempValor === item ? t.primary + '15' : 'transparent',
+                            flexDirection: 'row',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}
+                        >
+                          <Txt cor={tempValor === item ? 'primary' : 'text'} style={{ fontWeight: tempValor === item ? '700' : '400' }}>
+                            {item}
+                          </Txt>
+                          {tempValor === item ? <Icone nome="checkmark-outline" tamanho={18} cor="primary" /> : null}
+                        </Pressable>
+                      ))}
+                      {cursosFiltrados.length === 0 ? (
+                        <Txt cor="textMuted" style={{ textAlign: 'center', marginVertical: 16 }}>
+                          Nenhum curso encontrado.
+                        </Txt>
+                      ) : null}
+                    </View>
+                  </ScrollView>
+                </View>
+              ) : null}
+
+              {campoAtivo === 'periodo' ? (
                 <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
                   <View style={{ gap: 8 }}>
-                    {cursosFiltrados.map((item) => (
+                    {PERIODOS.map((item) => (
                       <Pressable
                         key={item}
                         onPress={() => {
                           setTempValor(item);
-                          salvarAlteracao(item, undefined);
+                          salvarAlteracao(undefined, item);
                         }}
                         style={{
                           paddingVertical: 12,
@@ -438,56 +649,15 @@ export default function Perfil() {
                         {tempValor === item ? <Icone nome="checkmark-outline" tamanho={18} cor="primary" /> : null}
                       </Pressable>
                     ))}
-                    {cursosFiltrados.length === 0 ? (
-                      <Txt cor="textMuted" style={{ textAlign: 'center', marginVertical: 16 }}>
-                        Nenhum curso encontrado.
-                      </Txt>
-                    ) : null}
                   </View>
                 </ScrollView>
-              </View>
-            ) : null}
-
-            {/* EDIÇÃO DE PERÍODO COM ROLAGEM (SEM PESQUISA) */}
-            {campoAtivo === 'periodo' ? (
-              <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
-                <View style={{ gap: 8 }}>
-                  {PERIODOS.map((item) => (
-                    <Pressable
-                      key={item}
-                      onPress={() => {
-                        setTempValor(item);
-                        salvarAlteracao(undefined, item);
-                      }}
-                      style={{
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 8,
-                        backgroundColor: tempValor === item ? t.primary + '15' : 'transparent',
-                        flexDirection: 'row',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Txt cor={tempValor === item ? 'primary' : 'text'} style={{ fontWeight: tempValor === item ? '700' : '400' }}>
-                        {item}
-                      </Txt>
-                      {tempValor === item ? <Icone nome="checkmark-outline" tamanho={18} cor="primary" /> : null}
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-            ) : null}
+              ) : null}
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      <Modal
-        visible={coresAbertas}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCoresAbertas(false)}
-      >
+      <Modal visible={coresAbertas} animationType="slide" transparent onRequestClose={() => setCoresAbertas(false)}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <Pressable style={{ flex: 1 }} onPress={() => setCoresAbertas(false)} />
           <View
@@ -536,11 +706,7 @@ export default function Perfil() {
                 </Pressable>
               ))}
             </View>
-            <Botao
-              titulo="Restaurar cores originais"
-              variante="texto"
-              onPress={() => definirCorDestaque('original')}
-            />
+            <Botao titulo="Restaurar cores originais" variante="texto" onPress={() => definirCorDestaque('original')} />
           </View>
         </View>
       </Modal>
@@ -578,7 +744,7 @@ function LinhaInfo({
           {valor}
         </Txt>
       </View>
-      <Icone nome="chevron-forward-outline" tamanho={18} cor="textMuted" />
+      <Icone nome="chevron-forward" tamanho={18} cor="textMuted" />
     </Pressable>
   );
 }
