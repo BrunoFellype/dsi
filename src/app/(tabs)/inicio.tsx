@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshControl, View } from 'react-native';
+import { RefreshControl, View, Image, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 
 import { Botao, Cabecalho, Cartao, Icone, Secao, Selo, SeloFonte, Tela, Txt, Vazio } from '@/components/ui';
@@ -10,7 +10,7 @@ import { useAstra } from '@/lib/store';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function Inicio() {
-  const { nome, atividades, avisos, sigaa, pendentesHorario, confirmarHorario } = useAstra();
+  const { nome, atividades, avisos, sigaa, pendentesHorario, confirmarHorario, usuario } = useAstra() as any;
   const t = useTheme();
   const [atualizando, setAtualizando] = useState(false);
 
@@ -21,9 +21,21 @@ export default function Inicio() {
     }, 1200);
   }
 
-  const pendentes = atividades.filter((a) => !a.concluida && diasAte(new Date(a.data)) >= 0);
+  // Função simples para calcular as iniciais caso não haja foto
+  const obterIniciais = (strNome: string) => {
+    if (!strNome) return 'U';
+    const partes = strNome.trim().split(' ');
+    if (partes.length === 1) return partes[0].substring(0, 2).toUpperCase();
+    return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
+  };
+
+  const nomeUsuario = usuario?.displayName || nome || 'Usuário';
+  const iniciais = obterIniciais(nomeUsuario);
+  const fotoUrl = usuario?.photoURL;
+
+  const pendentes = atividades.filter((a: any) => !a.concluida && diasAte(new Date(a.data)) >= 0);
   const proximas = pendentes.slice(0, 3);
-  const naSemana = pendentes.filter((a) => diasAte(new Date(a.data)) <= 7).length;
+  const naSemana = pendentes.filter((a: any) => diasAte(new Date(a.data)) <= 7).length;
   const primeiroNome = nome.trim().split(/\s+/)[0];
   const semDados = avisos.length === 0 && !sigaa && atividades.length === 0;
 
@@ -46,12 +58,41 @@ export default function Inicio() {
             : `${naSemana} ${naSemana === 1 ? 'prazo' : 'prazos'} nos próximos 7 dias.`
         }
         acao={
-          <Botao
-            titulo="Perfil"
-            icone="person-circle-outline"
-            variante="texto"
+          <TouchableOpacity
             onPress={() => router.push('/perfil')}
-          />
+            activeOpacity={0.8}
+            accessibilityLabel="Ir para o perfil"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: t.primary,
+              justifyContent: 'center',
+              alignItems: 'center',
+              overflow: 'hidden',
+              borderWidth: 1.5,
+              borderColor: t.border || '#E5E7EB',
+            }}
+          >
+            {fotoUrl ? (
+              <Image source={{ uri: fotoUrl }} style={{ width: '100%', height: '100%' }} />
+            ) : (
+              <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                <Txt 
+                  style={{ 
+                    color: '#fff', 
+                    fontSize: 14, 
+                    fontWeight: '700',
+                    lineHeight: 18,
+                    textAlign: 'center',
+                    includeFontPadding: false,
+                  }}
+                >
+                  {iniciais}
+                </Txt>
+              </View>
+            )}
+          </TouchableOpacity>
         }
       />
 
@@ -76,7 +117,7 @@ export default function Inicio() {
               <Txt cor="textSecondary">Tudo em dia por enquanto.</Txt>
             </Cartao>
           ) : (
-            proximas.map((a) => {
+            proximas.map((a: any) => {
               const urgente = diasAte(new Date(a.data)) <= 1;
               return (
                 <Cartao key={a.id} onPress={() => router.push('/agenda')} accessibilityLabel={a.titulo}>
@@ -113,8 +154,8 @@ export default function Inicio() {
             icone="stats-chart-outline"
             titulo="Desempenho"
             texto={
-              sigaa?.indices.find((i) => i.code === 'IRA')
-                ? `IRA ${sigaa.indices.find((i) => i.code === 'IRA')!.value.toFixed(1)} · notas e faltas`
+              sigaa?.indices.find((i: any) => i.code === 'IRA')
+                ? `IRA ${sigaa.indices.find((i: any) => i.code === 'IRA')!.value.toFixed(1)} · notas e faltas`
                 : 'Notas, faltas e pontos de atenção'
             }
             onPress={() => router.push('/desempenho')}
