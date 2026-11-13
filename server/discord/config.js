@@ -16,6 +16,7 @@ function lerConfiguracaoDiscord(env = process.env) {
     throw new Error('DISCORD_ALLOWED_CHANNELS deve conter ao menos um canal.');
   }
 
+<<<<<<< Updated upstream
   const permitidos = canais.map((canal) => {
     if (!canal || typeof canal.guildId !== 'string' || typeof canal.channelId !== 'string') {
       throw new Error('Cada canal autorizado precisa de guildId e channelId.');
@@ -30,6 +31,25 @@ function lerConfiguracaoDiscord(env = process.env) {
     };
   });
   return { token, aiApiKey, canais: permitidos };
+=======
+  return {
+    token,
+    aiApiKey,
+    canais: canais.map((canal) => {
+      if (!canal || typeof canal.guildId !== 'string' || typeof canal.channelId !== 'string') {
+        throw new Error('Cada canal autorizado precisa de guildId e channelId.');
+      }
+      if (!Array.isArray(canal.estudanteIds) || canal.estudanteIds.some((id) => typeof id !== 'string' || !id)) {
+        throw new Error('Cada canal autorizado precisa de estudanteIds não vazios.');
+      }
+      return {
+        guildId: canal.guildId,
+        channelId: canal.channelId,
+        estudanteIds: [...new Set(canal.estudanteIds)],
+      };
+    }),
+  };
+>>>>>>> Stashed changes
 }
 
 function canalAutorizado(config, guildId, channelId) {

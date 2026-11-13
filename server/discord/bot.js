@@ -1,22 +1,34 @@
 const { Client, GatewayIntentBits } = require('discord.js');
 const { canalAutorizado, lerConfiguracaoDiscord } = require('./config');
+<<<<<<< Updated upstream
 const { criarFirestore, removerAvisoDiscord, salvarAvisoDiscord } = require('./firestore');
+=======
+>>>>>>> Stashed changes
 const { interpretarMensagemDiscord } = require('./interpretador');
 
 function iniciarBotDiscord(env = process.env) {
   const config = lerConfiguracaoDiscord(env);
+<<<<<<< Updated upstream
   const db = criarFirestore(env);
+=======
+>>>>>>> Stashed changes
   const cliente = new Client({
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
   });
 
   function dadosDaMensagem(mensagem) {
     const servidor = mensagem.guild || cliente.guilds.cache.get(mensagem.guildId);
+<<<<<<< Updated upstream
     if (!servidor) return null;
     const canal = canalAutorizado(config, servidor.id, mensagem.channelId);
     if (!canal) return null;
     return {
       canal,
+=======
+    const canal = servidor && canalAutorizado(config, servidor.id, mensagem.channelId);
+    if (!canal) return null;
+    return {
+>>>>>>> Stashed changes
       entrada: {
         id: mensagem.id,
         texto: mensagem.content || '',
@@ -32,6 +44,10 @@ function iniciarBotDiscord(env = process.env) {
           tipo: anexo.contentType || undefined,
         })),
       },
+<<<<<<< Updated upstream
+=======
+      canal,
+>>>>>>> Stashed changes
     };
   }
 
@@ -41,6 +57,7 @@ function iniciarBotDiscord(env = process.env) {
     if (!dados) return;
     try {
       const aviso = await interpretarMensagemDiscord(dados.entrada, env);
+<<<<<<< Updated upstream
       if (aviso) await salvarAvisoDiscord(db, aviso, dados.canal.estudanteIds);
     } catch (erro) {
       console.error(`Não foi possível interpretar/salvar a mensagem Discord ${mensagem.id}:`, erro);
@@ -61,6 +78,17 @@ function iniciarBotDiscord(env = process.env) {
       console.error(`Não foi possível remover a mensagem Discord ${mensagem.id}:`, erro);
     }
   });
+=======
+      if (aviso) console.log(`Mensagem Discord interpretada: ${aviso.id}. Persistência não configurada.`);
+    } catch (erro) {
+      console.error(`Não foi possível interpretar a mensagem Discord ${mensagem.id}:`, erro);
+    }
+  }
+
+  cliente.once('ready', () => console.log(`Bot Discord conectado como ${cliente.user.tag}.`));
+  cliente.on('messageCreate', processarMensagem);
+  cliente.on('messageUpdate', (_anterior, atual) => void processarMensagem(atual));
+>>>>>>> Stashed changes
   cliente.on('error', (erro) => console.error('Erro no bot Discord:', erro));
   void cliente.login(config.token);
   return cliente;

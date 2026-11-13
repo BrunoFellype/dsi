@@ -13,7 +13,10 @@
   "dependencies": {
     "discord.js": "^14.25.1",
     "dotenv": "^18.0.9",
+<<<<<<< Updated upstream
     "firebase-admin": "^13.6.0",
+=======
+>>>>>>> Stashed changes
     "sigaa-api": "file:../vendor/sigaa-api"
   }
 }

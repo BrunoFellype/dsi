@@ -1,13 +1,20 @@
 const assert = require('node:assert/strict');
+<<<<<<< Updated upstream
 const { test, afterEach } = require('node:test');
 const { iniciarBotDiscordSeConfigurado } = require('./bot');
 const { canalAutorizado, lerConfiguracaoDiscord } = require('./config');
 const { lerCredencialFirebase, validarProjetoFirebase } = require('./firestore');
+=======
+const { test } = require('node:test');
+const { iniciarBotDiscordSeConfigurado } = require('./bot');
+const { canalAutorizado, lerConfiguracaoDiscord } = require('./config');
+>>>>>>> Stashed changes
 const { interpretarMensagemDiscord, validarInterpretacao } = require('./interpretador');
 
 const ambiente = {
   DISCORD_BOT_TOKEN: 'token-de-teste',
   AI_API_KEY: 'chave-de-teste',
+<<<<<<< Updated upstream
   DISCORD_ALLOWED_CHANNELS: JSON.stringify([
     { guildId: 'servidor-1', channelId: 'canal-1', estudanteIds: ['aluno-1'] },
   ]),
@@ -22,6 +29,13 @@ function respostaIA(classificacao) {
     ok: true,
     json: async () => ({ choices: [{ message: { content: JSON.stringify(classificacao) } }] }),
   });
+=======
+  DISCORD_ALLOWED_CHANNELS: JSON.stringify([{ guildId: 'servidor-1', channelId: 'canal-1', estudanteIds: ['aluno-1'] }]),
+};
+
+function respostaIA(classificacao) {
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(classificacao) } }] }) });
+>>>>>>> Stashed changes
 }
 
 test('aceita somente o servidor e canal configurados', () => {
@@ -30,9 +44,13 @@ test('aceita somente o servidor e canal configurados', () => {
   assert.equal(canalAutorizado(config, 'servidor-1', 'canal-2'), undefined);
 });
 
+<<<<<<< Updated upstream
 test('mantém o bot desativado sem token', () => {
   assert.equal(iniciarBotDiscordSeConfigurado({}), null);
 });
+=======
+test('mantém o bot desativado sem token', () => assert.equal(iniciarBotDiscordSeConfigurado({}), null));
+>>>>>>> Stashed changes
 
 test('exige token, chave de IA e canais autorizados', () => {
   for (const chave of ['DISCORD_BOT_TOKEN', 'AI_API_KEY', 'DISCORD_ALLOWED_CHANNELS']) {
@@ -42,6 +60,7 @@ test('exige token, chave de IA e canais autorizados', () => {
   }
 });
 
+<<<<<<< Updated upstream
 test('valida o projeto Firebase e a conta de serviço sem conectar', () => {
   assert.equal(validarProjetoFirebase('astra-dev-123'), 'astra-dev-123');
   assert.equal(validarProjetoFirebase(''), undefined);
@@ -93,10 +112,27 @@ test('não processa sem chave da API e não usa fallback heurístico', async () 
     () => interpretarMensagemDiscord({ id: '1', texto: 'Entrega dia 20/11' }, {}),
     /AI_API_KEY não configurada/
   );
+=======
+test('interpreta semanticamente uma mensagem acadêmica', async () => {
+  respostaIA({ categoria: 'prova', titulo: 'Prova', disciplina: 'Banco de Dados', data: '2026-11-20', hora: '14:00', evidenciaData: 'dia 20/11 às 14h' });
+  const aviso = await interpretarMensagemDiscord({
+    id: 'mensagem-1',
+    texto: 'A prova será dia 20/11 às 14h.',
+    recebidoEm: '2026-11-02T10:00:00.000Z',
+  }, ambiente);
+  assert.equal(aviso.id, 'discord-mensagem-1');
+  assert.equal(aviso.tipo, 'prazo');
+  assert.equal(aviso.fonte, 'discord');
+});
+
+test('não processa sem chave da API', async () => {
+  await assert.rejects(() => interpretarMensagemDiscord({ id: '1', texto: 'Entrega dia 20/11' }, {}), /AI_API_KEY não configurada/);
+>>>>>>> Stashed changes
 });
 
 test('rejeita data sem evidência na mensagem original', () => {
   assert.throws(() => validarInterpretacao({
+<<<<<<< Updated upstream
     categoria: 'prazo',
     titulo: null,
     disciplina: null,
@@ -123,3 +159,8 @@ test('preserva mensagens que só contêm anexos', async () => {
   assert.equal(aviso.tipo, 'material');
   assert.equal(aviso.texto, '');
 });
+=======
+    categoria: 'prazo', titulo: null, disciplina: null, data: '2026-11-20', hora: null, evidenciaData: 'dia 20/11',
+  }, 'Mensagem sem data.'), /evidência/);
+});
+>>>>>>> Stashed changes
