@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { RefreshControl, View, Image, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 
-import { Botao, Cabecalho, Cartao, Icone, Secao, Selo, SeloFonte, Tela, Txt, Vazio } from '@/components/ui';
+import { Cabecalho, Cartao, Icone, Secao, Selo, SeloFonte, Tela, Txt, Vazio } from '@/components/ui';
 import { ConfirmarHorarios } from '@/components/confirmarHorarios';
 import { diasAte } from '@/lib/datas';
 import { textoPrazo } from '@/lib/horarios';

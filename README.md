@@ -75,7 +75,8 @@ cd dsi
 ```bash
 npm install
 ```
-3. Inicie o projeto
+3. Crie o arquivo `.env` a partir de `.env.example` e preencha as variáveis `EXPO_PUBLIC_*` do seu projeto Firebase
+4. Inicie o projeto
 ```bash
 npx expo start
 ```

@@ -26,22 +26,26 @@ export default function Desempenho() {
   const freqCurso = sigaa ? frequenciaDoCurso(sigaa.historico, sigaa.disciplinas) : null;
   const freqTurmas = sigaa ? frequenciaPorDisciplina(sigaa.disciplinas) : [];
 
+  const estudo = medias?.estudo;
+  const sono = medias?.sono;
+  const estresse = medias?.estresse;
+  const presenca = freqPeriodo?.percentual;
+  const semDados = !medias && !freqPeriodo;
+
   useEffect(() => {
-    if (!medias && !freqPeriodo) {
-      setPredicao(null);
-      setErroPredicao('');
-      return;
-    }
+    if (semDados) return;
     let ativo = true;
-    setErroPredicao('');
     buscarPredicao(ponte, {
-      study_hours_per_day: medias?.estudo,
-      sleep_hours: medias?.sono,
-      mental_stress_level: medias?.estresse,
-      class_attendance_percent: freqPeriodo?.percentual,
+      study_hours_per_day: estudo,
+      sleep_hours: sono,
+      mental_stress_level: estresse,
+      class_attendance_percent: presenca,
     })
       .then((resultado) => {
-        if (ativo) setPredicao(resultado);
+        if (ativo) {
+          setPredicao(resultado);
+          setErroPredicao('');
+        }
       })
       .catch((erro: Error) => {
         if (ativo) {
@@ -52,7 +56,7 @@ export default function Desempenho() {
     return () => {
       ativo = false;
     };
-  }, [ponte, medias?.estudo, medias?.sono, medias?.estresse, freqPeriodo?.percentual]);
+  }, [ponte, semDados, estudo, sono, estresse, presenca]);
 
   if (!sigaa && diario.length === 0) {
     return (
@@ -97,7 +101,7 @@ export default function Desempenho() {
       {medias || freqPeriodo ? (
         <Secao titulo="Previsão de desempenho">
           <Cartao>
-            {predicao ? (
+            {!semDados && predicao ? (
               <>
                 <Txt style={{ fontSize: 32, fontWeight: '800' }}>{fmt(predicao.gpa)} GPA</Txt>
                 <Txt v="legenda" cor="textSecondary">

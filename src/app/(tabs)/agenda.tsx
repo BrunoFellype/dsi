@@ -208,7 +208,6 @@ function LinhaAtividade({
   onRemover?: () => void;
   onEditar?: () => void;
 }) {
-  const t = useTheme();
   const swipeableRef = useRef<SwipeableMethods>(null);
   
   // Estado local para dar o feedback visual imediato antes de sumir

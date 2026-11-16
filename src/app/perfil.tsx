@@ -74,7 +74,7 @@ export default function Perfil() {
       })
       .catch(() => setErro('Não foi possível carregar o perfil.'))
       .finally(() => setCarregando(false));
-  }, [sessao]);
+  }, [sessao, usuario]);
 
   // Lista de cursos filtrada pela busca em tempo real
   const cursosFiltrados = useMemo(() => {
