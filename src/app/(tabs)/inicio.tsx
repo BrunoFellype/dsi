@@ -1,6 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { RefreshControl, View, Image, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
+
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/services/firebase';
+import { MapaCampus } from '@/components/mapaCampus';
 
 import { Cabecalho, Cartao, Icone, Secao, Selo, SeloFonte, Tela, Txt, Vazio } from '@/components/ui';
 import { ConfirmarHorarios } from '@/components/confirmarHorarios';
@@ -13,6 +17,19 @@ export default function Inicio() {
   const { nome, atividades, avisos, sigaa, pendentesHorario, confirmarHorario, usuario } = useAstra() as any;
   const t = useTheme();
   const [atualizando, setAtualizando] = useState(false);
+  const [cursoPerfil, setCursoPerfil] = useState<string | null>(null);
+
+  useEffect(() => {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return;
+  getDoc(doc(db, 'perfisAprendizagem', uid))
+    .then((snap) => {
+      if (snap.exists()) {
+        setCursoPerfil(snap.data().curso ?? null);
+      }
+    })
+    .catch(() => {});
+}, []);
 
   async function aoAtualizar() {
     setAtualizando(true);
@@ -142,6 +159,7 @@ export default function Inicio() {
         </Secao>
       )}
 
+
       <Secao titulo="Seu acompanhamento">
         <View style={{ gap: 12 }}>
           <Atalho
@@ -161,6 +179,12 @@ export default function Inicio() {
             onPress={() => router.push('/desempenho')}
           />
         </View>
+      </Secao>
+      <Secao titulo="Localização no campus">
+        <MapaCampus
+          cursoUsuario={cursoPerfil}
+          onIrParaPerfil={() => router.push('/perfil')}
+        />
       </Secao>
 
       {sigaa?.demo ? (
