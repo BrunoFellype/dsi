@@ -2,6 +2,7 @@ import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { IconName } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
@@ -18,6 +19,8 @@ const ABAS: { nome: string; titulo: string; icone: IconName; ativo: IconName }[]
 export default function LayoutAbas() {
   const t = useTheme();
   const { sessao } = useAstra();
+  // Espaço dos botões do sistema (Android com 3 botões ou barra de gestos do iPhone)
+  const insets = useSafeAreaInsets();
 
   if (sessao === 'carregando') {
     return (
@@ -35,7 +38,15 @@ export default function LayoutAbas() {
         tabBarActiveTintColor: t.primary,
         tabBarInactiveTintColor: t.textSecondary,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginBottom: 3 },
-        tabBarStyle: { backgroundColor: t.surface, borderTopColor: t.border, height: 60, paddingBottom: 6 },
+        // A altura soma a área dos botões do sistema: com altura fixa a barra ficava espremida
+        // atrás dos botões do Android e os ícones sumiam
+        tabBarStyle: {
+          backgroundColor: t.surface,
+          borderTopColor: t.border,
+          height: 62 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: 6 + insets.bottom,
+        },
       }}
     >
       {ABAS.map((aba) => (
@@ -46,7 +57,7 @@ export default function LayoutAbas() {
             title: aba.titulo,
             tabBarAccessibilityLabel: aba.titulo,
             tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons name={focused ? aba.ativo : aba.icone} size={size} color={color as string} />
+              <Ionicons name={focused ? aba.ativo : aba.icone} size={size || 24} color={color as string} />
             ),
           }}
         />

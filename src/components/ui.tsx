@@ -18,6 +18,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { MaxContentWidth, Radius, Spacing } from '@/constants/theme';
@@ -67,9 +68,16 @@ export function Tela({
   refreshControl?: React.ReactElement<RefreshControlProps>; 
 }) {
   const t = useTheme();
+  // Dentro das abas, a barra inferior já desvia dos botões do sistema. Fora delas (login, perfil,
+  // diário...) a própria tela precisa reservar esse espaço embaixo.
+  const segmentos = useSegments() as string[];
+  const dentroDasAbas = segmentos[0] === '(tabs)';
   const conteudo = <View style={[estilos.coluna, style]}>{children}</View>;
   return (
-    <SafeAreaView style={[estilos.tela, { backgroundColor: t.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView
+      style={[estilos.tela, { backgroundColor: t.background }]}
+      edges={dentroDasAbas ? ['top', 'left', 'right'] : ['top', 'left', 'right', 'bottom']}
+    >
       {rolavel ? (
         <ScrollView
           contentContainerStyle={estilos.rolagem}

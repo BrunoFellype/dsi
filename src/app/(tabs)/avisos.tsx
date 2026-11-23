@@ -1,3 +1,4 @@
+import { GaleriaAviso } from '@/components/galeriaAviso';
 import { NAO_INFORMADO_TEXTO, Seletor } from '@/components/seletor';
 import { Botao, Cabecalho, Campo, Cartao, Chip, FONTES, Icone, Mensagem, Selo, SeloFonte, Tela, Txt, Vazio, type IconName } from '@/components/ui';
 import type { EdicaoAviso } from '@/lib/crud';
@@ -133,6 +134,7 @@ export default function Avisos() {
                       Também enviado em {outros.join(', ')}
                     </Txt>
                   ) : null}
+                  <GaleriaAviso imagens={a.imagens} onMudar={(imagens) => editarAviso(a.id, { imagens })} />
                   <View style={{ flexDirection: 'row', gap: 20 }}>
                     <Pressable
                       onPress={() => setEditando(a.id)}

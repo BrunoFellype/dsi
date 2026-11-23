@@ -1,4 +1,6 @@
+import { CarrosselImagens } from '@/components/carrossel';
 import { Botao, Cabecalho, Cartao, Chip, Icone, Selo, SeloFonte, Tela, Txt, Vazio, type IconName } from '@/components/ui';
+import { imagensDosAvisos } from '@/lib/galeria';
 import { useTheme } from '@/hooks/use-theme'; 
 import { haQuanto } from '@/lib/datas';
 import { montarExportacao } from '@/lib/exportacao';
@@ -127,6 +129,7 @@ function CartaoGrupo({
   onMover: (aviso: Aviso, destino: Grupo) => void;
 }) {
   const t = useTheme();
+  const fotos = imagensDosAvisos(grupo.avisos);
 
   return (
     <Cartao style={{ padding: 16 }}>
@@ -143,6 +146,15 @@ function CartaoGrupo({
         </View>
         <Icone nome={aberto ? 'chevron-up' : 'chevron-down'} cor="textMuted" />
       </Pressable>
+
+      {fotos.length > 0 ? (
+        <View style={{ marginTop: 14, gap: 6 }}>
+          <Txt v="legenda" cor="textSecondary">
+            {fotos.length} {fotos.length === 1 ? 'foto' : 'fotos'} deste assunto
+          </Txt>
+          <CarrosselImagens imagens={fotos} altura={170} rotulo={`Fotos de ${grupo.rotulo}`} />
+        </View>
+      ) : null}
 
       {aberto ? (
         <View style={{ gap: 12, marginTop: 16 }}>

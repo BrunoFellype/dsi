@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, View, Image, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/services/firebase';
@@ -19,17 +19,26 @@ export default function Inicio() {
   const [atualizando, setAtualizando] = useState(false);
   const [cursoPerfil, setCursoPerfil] = useState<string | null>(null);
 
-  useEffect(() => {
-  const uid = auth.currentUser?.uid;
-  if (!uid) return;
-  getDoc(doc(db, 'perfisAprendizagem', uid))
-    .then((snap) => {
-      if (snap.exists()) {
-        setCursoPerfil(snap.data().curso ?? null);
+  // Relê o curso sempre que a aba ganha foco: assim, ao trocar o curso no perfil e voltar,
+  // o mapa já destaca o prédio novo. O uid vem do store (o auth pode ainda estar carregando no primeiro render).
+  const uidUsuario: string | undefined = usuario?.uid ?? auth.currentUser?.uid;
+  useFocusEffect(
+    useCallback(() => {
+      if (!uidUsuario) {
+        setCursoPerfil(null);
+        return;
       }
-    })
-    .catch(() => {});
-}, []);
+      let ativo = true;
+      getDoc(doc(db, 'perfisAprendizagem', uidUsuario))
+        .then((snap) => {
+          if (ativo) setCursoPerfil(snap.exists() ? (snap.data().curso ?? null) : null);
+        })
+        .catch(() => {});
+      return () => {
+        ativo = false;
+      };
+    }, [uidUsuario])
+  );
 
   async function aoAtualizar() {
     setAtualizando(true);

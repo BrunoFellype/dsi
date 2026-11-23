@@ -217,6 +217,23 @@ function normalizarTexto(texto: string): string {
     .trim();
 }
 
+/** Busca por nome, sigla ou curso, sem diferenciar acentos e maiúsculas. */
+export function buscarLocais(termo: string, locais: LocalCampus[] = LOCAIS_UFRPE): LocalCampus[] {
+  const alvo = normalizarTexto(termo);
+  if (!alvo) return [];
+  return locais.filter(
+    (local) =>
+      normalizarTexto(local.nome).includes(alvo) ||
+      (local.sigla ? normalizarTexto(local.sigla).includes(alvo) : false) ||
+      (local.cursosAtrelados ?? []).some((c) => normalizarTexto(c).includes(alvo))
+  );
+}
+
+/** Link de rota a pé até o local no Google Maps (abre o app de mapas do celular ou o navegador). */
+export function linkComoChegar(local: Pick<LocalCampus, 'latitude' | 'longitude'>): string {
+  return `https://www.google.com/maps/dir/?api=1&destination=${local.latitude},${local.longitude}&travelmode=walking`;
+}
+
 /**
  * Encontra o prédio correspondente ao curso do estudante.
  * Faz correspondência exata primeiro e parcial como fallback.

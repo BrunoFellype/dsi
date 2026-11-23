@@ -35,6 +35,8 @@ export interface EdicaoAviso {
   prazo?: string | null;
   /** O horário do prazo não foi informado. */
   horaNaoInformada?: boolean;
+  /** Lista completa de imagens; [] remove todas. */
+  imagens?: string[];
 }
 
 /** Edita uma mensagem. Quem edita o prazo já confirma o horário (ou diz que não foi informado). */
@@ -50,6 +52,7 @@ export function editarAvisoNaLista(avisos: Aviso[], id: string, edicao: EdicaoAv
       novo.prazoSemHora = undefined;
       novo.horaNaoInformada = edicao.prazo ? Boolean(edicao.horaNaoInformada) || undefined : undefined;
     }
+    if (edicao.imagens !== undefined) novo.imagens = edicao.imagens.length ? [...edicao.imagens] : undefined;
     return novo;
   });
 }

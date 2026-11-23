@@ -19,6 +19,8 @@ export interface Aviso {
   categoria?: TipoAviso;
   /** Usuário responsável pela publicação (professor ou autor). */
   autor?: string;
+  /** Fotos anexadas pelo estudante (quadro, slide, material). URLs públicas ou locais. */
+  imagens?: string[];
 }
 
 export type MensagemImportada = Aviso;

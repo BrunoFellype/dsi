@@ -1,17 +1,35 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
-
-const NativeWebView = WebView as React.ComponentType<any>;
 
 import { Cartao, Icone, Selo, Txt } from '@/components/ui';
 import {
   CENTRO_UFRPE,
   LOCAIS_UFRPE,
+  buscarLocais,
   encontrarLocalDoCurso,
+  linkComoChegar,
   type LocalCampus,
 } from '@/data/ufrpeCampus';
 import { useTheme } from '@/hooks/use-theme';
+
+const NativeWebView = WebView as React.ComponentType<any>;
+
+/** Mensagem que o mapa (Leaflet) manda para o app: pino tocado ou falha ao carregar. */
+type MensagemMapa = { tipo: 'selecionar'; id: string } | { tipo: 'erro' };
+
+function lerMensagemDoMapa(bruto: unknown): MensagemMapa | null {
+  if (typeof bruto !== 'string') return null;
+  try {
+    const msg = JSON.parse(bruto);
+    if (msg?.origem !== 'astra-mapa') return null;
+    if (msg.tipo === 'selecionar' && typeof msg.id === 'string') return { tipo: 'selecionar', id: msg.id };
+    if (msg.tipo === 'erro') return { tipo: 'erro' };
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 interface MapaCampusProps {
   cursoUsuario?: string | null;
@@ -21,40 +39,75 @@ interface MapaCampusProps {
 export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
   const t = useTheme();
   const webViewRef = useRef<any>(null);
+  const iframeRef = useRef<any>(null);
 
   const localDoCurso = useMemo(() => encontrarLocalDoCurso(cursoUsuario), [cursoUsuario]);
   const [selecionado, setSelecionado] = useState<LocalCampus>(localDoCurso ?? LOCAIS_UFRPE[0]);
   const [busca, setBusca] = useState('');
   const [mostrandoResultados, setMostrandoResultados] = useState(false);
+  const [falhou, setFalhou] = useState(false);
 
-  // Atualiza o foco automaticamente se o usuário alterar o curso no perfil
-  useEffect(() => {
-    if (localDoCurso) {
-      focarLocal(localDoCurso);
-    }
-  }, [localDoCurso?.id]);
-
-  const resultadosBusca = useMemo(() => {
-    const termo = busca.trim().toLowerCase();
-    if (!termo) return [];
-    return LOCAIS_UFRPE.filter((item) => {
-      const bateNome = item.nome.toLowerCase().includes(termo);
-      const bateSigla = item.sigla?.toLowerCase().includes(termo);
-      const bateCurso = item.cursosAtrelados?.some((c) => c.toLowerCase().includes(termo));
-      return bateNome || bateSigla || bateCurso;
-    });
-  }, [busca]);
-
-  function focarLocal(local: LocalCampus) {
-    setSelecionado(local);
-    setMostrandoResultados(false);
-    const script = `
-      if (window.focarLocal) {
-        window.focarLocal(${local.latitude}, ${local.longitude}, "${local.id}");
+  /** Executa uma função do mapa, tanto no celular (WebView) quanto no navegador (iframe). */
+  const executarNoMapa = useCallback((codigo: string) => {
+    if (Platform.OS === 'web') {
+      try {
+        iframeRef.current?.contentWindow?.eval?.(codigo);
+      } catch {
+        // iframe ainda carregando: o mapa abre no local inicial
       }
-      true;
-    `;
-    webViewRef.current?.injectJavaScript(script);
+      return;
+    }
+    webViewRef.current?.injectJavaScript(`${codigo}; true;`);
+  }, []);
+
+  const focarLocal = useCallback(
+    (local: LocalCampus) => {
+      setSelecionado(local);
+      setMostrandoResultados(false);
+      executarNoMapa(
+        `if (window.focarLocal) window.focarLocal(${local.latitude}, ${local.longitude}, ${JSON.stringify(local.id)})`
+      );
+    },
+    [executarNoMapa]
+  );
+
+  const verCampusTodo = useCallback(() => {
+    executarNoMapa('if (window.verCampusTodo) window.verCampusTodo()');
+  }, [executarNoMapa]);
+
+  const tratarMensagem = useCallback((msg: MensagemMapa | null) => {
+    if (!msg) return;
+    if (msg.tipo === 'erro') {
+      setFalhou(true);
+      return;
+    }
+    const achado = LOCAIS_UFRPE.find((l) => l.id === msg.id);
+    if (achado) setSelecionado(achado);
+  }, []);
+
+  // Se o curso mudar no perfil, o pino selecionado passa a ser o novo prédio.
+  // (O HTML do mapa é refeito com esse prédio no centro, então não precisa mover o mapa aqui.)
+  const [cursoAnterior, setCursoAnterior] = useState(localDoCurso?.id);
+  if (localDoCurso?.id !== cursoAnterior) {
+    setCursoAnterior(localDoCurso?.id);
+    if (localDoCurso) setSelecionado(localDoCurso);
+  }
+
+  // No navegador o mapa roda num iframe e conversa por window.postMessage
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const aoReceber = (e: MessageEvent) => {
+      if (iframeRef.current && e.source !== iframeRef.current.contentWindow) return;
+      tratarMensagem(lerMensagemDoMapa(e.data));
+    };
+    window.addEventListener('message', aoReceber);
+    return () => window.removeEventListener('message', aoReceber);
+  }, [tratarMensagem]);
+
+  const resultadosBusca = useMemo(() => buscarLocais(busca.trim()), [busca]);
+
+  function abrirComoChegar() {
+    Linking.openURL(linkComoChegar(selecionado)).catch(() => {});
   }
 
   const htmlMapa = useMemo(() => {
@@ -100,13 +153,30 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
             const corPrimaria = "${corPrimaria}";
             let idAtivo = "${inicialId}";
 
+            // Envia a mensagem para o app: WebView no celular, janela pai (iframe) no navegador
+            function enviar(msg) {
+              msg.origem = 'astra-mapa';
+              const texto = JSON.stringify(msg);
+              if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(texto);
+              else if (window.parent && window.parent !== window) window.parent.postMessage(texto, '*');
+            }
+
+            // Sem internet o Leaflet não carrega: avisa o app para mostrar a mensagem de erro
+            if (typeof L === 'undefined') {
+              enviar({ tipo: 'erro' });
+              throw new Error('Leaflet indisponivel');
+            }
+
             const map = L.map('map', {
               zoomControl: true,
-              attributionControl: false
+              attributionControl: true
             }).setView([${inicialLat}, ${inicialLng}], 17);
+            map.attributionControl.setPrefix(false);
 
+            // A licença do OpenStreetMap exige o crédito visível no mapa
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-              maxZoom: 19
+              maxZoom: 19,
+              attribution: '&copy; OpenStreetMap'
             }).addTo(map);
 
             const marcadores = {};
@@ -129,7 +199,7 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
               }).addTo(map);
 
               marker.on('click', () => {
-                window.ReactNativeWebView.postMessage(JSON.stringify({ tipo: 'selecionar', id: local.id }));
+                enviar({ tipo: 'selecionar', id: local.id });
                 window.focarLocal(local.latitude, local.longitude, local.id);
               });
 
@@ -154,7 +224,7 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
         </body>
       </html>
     `;
-  }, [localDoCurso?.id, t.primary]);
+  }, [localDoCurso, t.primary]);
 
   return (
     <Cartao style={{ gap: 12, padding: 14 }}>
@@ -247,7 +317,7 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
           {resultadosBusca.length === 0 ? (
             <View style={{ padding: 12 }}>
               <Txt v="legenda" cor="textMuted">
-                Nenhum local encontrado para "{busca}".
+                Nenhum local encontrado para &quot;{busca}&quot;.
               </Txt>
             </View>
           ) : (
@@ -295,12 +365,25 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
           borderColor: t.border,
         }}
       >
-        {Platform.OS === 'web' ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+        {falhou ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 16, gap: 6 }}>
+            <Icone nome="cloud-offline-outline" tamanho={22} cor="textMuted" />
             <Txt v="legenda" cor="textSecondary" style={{ textAlign: 'center' }}>
-              Mapa interativo disponível no aplicativo móvel (Expo Go).
+              Não foi possível carregar o mapa. Verifique a internet.
             </Txt>
+            <Pressable onPress={() => setFalhou(false)} hitSlop={8} accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}>
+              <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>
+                Tentar de novo
+              </Txt>
+            </Pressable>
           </View>
+        ) : Platform.OS === 'web' ? (
+          React.createElement('iframe', {
+            ref: iframeRef,
+            srcDoc: htmlMapa,
+            title: 'Mapa do campus da UFRPE',
+            style: { border: 0, width: '100%', height: '100%' },
+          })
         ) : (
           <NativeWebView
             ref={webViewRef}
@@ -309,17 +392,17 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
             nestedScrollEnabled
             javaScriptEnabled
             domStorageEnabled
-            onMessage={(event: WebViewMessageEvent) => {
-              try {
-                const msg = JSON.parse(event.nativeEvent.data);
-                if (msg.tipo === 'selecionar') {
-                  const achado = LOCAIS_UFRPE.find((l) => l.id === msg.id);
-                  if (achado) setSelecionado(achado);
-                }
-              } catch {}
-            }}
+            originWhitelist={['*']}
+            onError={() => setFalhou(true)}
+            onMessage={(event: WebViewMessageEvent) => tratarMensagem(lerMensagemDoMapa(event.nativeEvent.data))}
           />
         )}
+      </View>
+
+      {/* Atalhos do mapa */}
+      <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap' }}>
+        <AcaoMapa icone="navigate-outline" rotulo="Como chegar" onPress={abrirComoChegar} />
+        <AcaoMapa icone="expand-outline" rotulo="Ver campus todo" onPress={verCampusTodo} />
       </View>
 
       {/* Card de resumo do pino selecionado */}
@@ -346,5 +429,29 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
         </Txt>
       </View>
     </Cartao>
+  );
+}
+function AcaoMapa({
+  icone,
+  rotulo,
+  onPress,
+}: {
+  icone: 'navigate-outline' | 'expand-outline';
+  rotulo: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={rotulo}
+      style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+    >
+      <Icone nome={icone} tamanho={16} cor="primary" />
+      <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>
+        {rotulo}
+      </Txt>
+    </Pressable>
   );
 }

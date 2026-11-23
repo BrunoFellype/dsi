@@ -38,7 +38,14 @@
       "@react-native-google-signin/google-signin",
       "expo-notifications",
       "expo-image",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O ASTRA acessa suas fotos para anexar imagens aos avisos e ao perfil.",
+          "cameraPermission": "O ASTRA usa a câmera para fotografar o quadro ou o slide e anexar ao aviso."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
