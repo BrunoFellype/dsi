@@ -27,8 +27,9 @@ export function chaveHorario(a: Pick<Atividade, 'id' | 'fonte' | 'titulo' | 'dat
 
 /** No SIGAA, provas e tarefas sem horário vêm à meia-noite. */
 export function semHoraNoSigaa(iso: string): boolean {
-  const d = new Date(iso);
-  return d.getHours() === 0 && d.getMinutes() === 0;
+  // O SIGAA fala em horário de Brasília (UTC-3), seja qual for o fuso da máquina.
+  const b = new Date(new Date(iso).getTime() - 3 * 3600000);
+  return b.getUTCHours() === 0 && b.getUTCMinutes() === 0;
 }
 
 /** Aplica os horários confirmados pelo estudante às atividades que estavam sem hora. */
@@ -40,8 +41,9 @@ export function aplicarHorarios(atividades: Atividade[], horarios: Record<string
     if (valor === NAO_INFORMADO) return { ...a, semHora: false, horaNaoInformada: true };
     const hm = lerHora(valor);
     if (!hm) return a;
-    const d = new Date(a.data);
-    d.setHours(hm.h, hm.m, 0, 0);
+    // Mantém o dia de Brasília e troca só a hora (também em horário de Brasília).
+    const b = new Date(new Date(a.data).getTime() - 3 * 3600000);
+    const d = new Date(Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate(), hm.h + 3, hm.m));
     return { ...a, data: d.toISOString(), semHora: false, horaNaoInformada: false };
   });
 }

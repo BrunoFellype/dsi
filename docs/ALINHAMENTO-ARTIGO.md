@@ -10,7 +10,7 @@ Base: *ASTRA – Ambiente de Suporte à Trajetória e Rotina Acadêmica* (arquiv
 | Reunir fontes dispersas: SIGAA, Classroom, WhatsApp, Telegram, Discord | Aba **Fontes** | SIGAA direto no celular (ou pela ponte no navegador); WhatsApp, Telegram, Classroom, Discord e e-mail por mensagens coladas |
 | Converter mensagens soltas em prazos, comunicados e materiais | `src/lib/parse.ts` classifica cada mensagem e extrai data e hora | Feito (regras) |
 | Reduzir ruído e repetição entre canais | `agruparRepetidos` em `src/lib/ml.ts`: mensagens parecidas viram um aviso só ("Também enviado em…") | Feito |
-| **PP1:** agrupar mensagens por assunto sem rótulo prévio (TF-IDF + K-Means) | Aba **Assuntos**; `src/lib/ml.ts` | Feito, roda no aparelho |
+| **PP1:** agrupar mensagens por assunto sem rótulo prévio (peso de relevância TF-IDF + K-Means) | Aba **Assuntos**; `src/lib/ml.ts` | Feito, roda no aparelho |
 | Escolher k pelo Coeficiente de Silhueta | `agruparAvisos` testa k de 2 a 6 (o artigo avalia k de 2 a 8 na base de hábitos, em outra etapa) e fica com a maior silhueta; o valor aparece na tela | Feito |
 | Aprendizado ativo, com o estudante corrigindo os grupos (*human-in-the-loop*) | Botão "Assunto errado?" em cada mensagem; a correção é guardada e reaplicada | Feito: a correção move a mensagem e puxa as muito parecidas junto; o modelo em si não é retreinado |
 | **PP2:** usar dados acadêmicos para apontar necessidades de aprendizagem | Tela **Desempenho**: IRA/MC, histórico, pontos de atenção, média de sono/estudo/estresse | Parcial |

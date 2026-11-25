@@ -28,7 +28,7 @@ Facilitar o acompanhamento da rotina acadêmica por meio da centralização e or
 - 🏠 **Início**: próximos prazos e atalhos;
 - 📅 **Agenda**: prazos e avaliações de todas as fontes, com conclusão de tarefas e tarefas manuais;
 - 🔔 **Avisos**: mensagens sem repetição, com filtro por prazos, avisos e materiais;
-- ✨ **Assuntos**: agrupamento automático das mensagens por tema (TF-IDF + K-Means, k pela silhueta), com correção feita pelo estudante;
+- ✨ **Assuntos**: agrupamento automático das mensagens por tema (pesos TF-IDF de relevância dos termos + K-Means, k pela silhueta; não usa embeddings), com correção feita pelo estudante;
 - 🔗 **Fontes**: conexão com o SIGAA da UFRPE (direto no celular) e importação de mensagens do WhatsApp, Telegram, Classroom e Discord;
 - 📖 **Diário** de sono, estudo e estresse, e tela de **Desempenho** com IRA, histórico, pontos de atenção e médias da rotina;
 - 🔔 Lembretes de prazo e resumo diário das 7h30 no celular;

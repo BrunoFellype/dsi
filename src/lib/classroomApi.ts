@@ -143,14 +143,17 @@ async function fetchClassroom<T>(endpoint: string, accessToken: string): Promise
 }
 
 /** Converte a data e hora do Classroom em uma string no padrão ISO 8601. */
-function formatarPrazoISO(dueDate?: GoogleDate, dueTime?: GoogleTime): string | undefined {
-  if (!dueDate) return undefined;
-  const ano = String(dueDate.year).padStart(4, '0');
-  const mes = String(dueDate.month).padStart(2, '0');
-  const dia = String(dueDate.day).padStart(2, '0');
-  const hora = String(dueTime?.hours ?? 23).padStart(2, '0');
-  const min = String(dueTime?.minutes ?? 59).padStart(2, '0');
-  return `${ano}-${mes}-${dia}T${hora}:${min}:00`;
+export function formatarPrazoISO(dueDate?: GoogleDate, dueTime?: GoogleTime): string | undefined {
+  if (!dueDate || !dueDate.year || !dueDate.month || !dueDate.day) return undefined;
+  // A API do Classroom entrega dueDate + dueTime em UTC. Antes isso virava horário local sem
+  // conversão e o prazo aparecia 3 h adiantado/atrasado (e no dia errado perto da meia-noite).
+  if (dueTime) {
+    return new Date(
+      Date.UTC(dueDate.year, dueDate.month - 1, dueDate.day, dueTime.hours ?? 0, dueTime.minutes ?? 0)
+    ).toISOString();
+  }
+  // Só a data, sem hora: vale até o fim do dia em Brasília (23:59 = 02:59 UTC do dia seguinte)
+  return new Date(Date.UTC(dueDate.year, dueDate.month - 1, dueDate.day, 23 + 3, 59)).toISOString();
 }
 
 /** Formata a data de entrega no formato legível DD/MM/AAAA. */
@@ -319,10 +322,10 @@ export async function buscarDadosGoogleClassroom(accessToken: string): Promise<P
       for (const cw of trabalhos) {
         const sub = mapaSubmissoes.get(cw.id);
         const concluida = sub?.state === 'TURNED_IN' || sub?.state === 'RETURNED';
-        const dataISO =
-          formatarPrazoISO(cw.dueDate, cw.dueTime) ??
-          cw.creationTime ??
-          new Date().toISOString();
+        // Sem prazo no Classroom = sem data de entrega. Antes usava a data de criação (ou "agora"),
+        // o que fabricava entregas que não existem na agenda.
+        const prazoISO = formatarPrazoISO(cw.dueDate, cw.dueTime);
+        const dataISO = prazoISO ?? cw.creationTime ?? new Date().toISOString();
 
         if (
           typeof sub?.assignedGrade === 'number' &&
@@ -332,18 +335,21 @@ export async function buscarDadosGoogleClassroom(accessToken: string): Promise<P
           notasObtidas.push((sub.assignedGrade / cw.maxPoints) * 10);
         }
 
-        atividades.push({
-          id: `classroom-cw-${cw.id}`,
-          titulo: cw.title,
-          disciplina: nomeDisciplina,
-          disciplinaId: `classroom-disc-${curso.id}`,
-          data: dataISO,
-          concluida,
-          tipo: cw.workType === 'MULTIPLE_CHOICE_QUESTION' ? 'avaliacao' : 'tarefa',
-          fonte: 'classroom',
-          descricao: cw.description ?? '',
-          nota: sub?.assignedGrade,
-        });
+        if (prazoISO) {
+          atividades.push({
+            id: `classroom-cw-${cw.id}`,
+            titulo: cw.title,
+            disciplina: nomeDisciplina,
+            disciplinaId: `classroom-disc-${curso.id}`,
+            data: prazoISO,
+            concluida,
+            tipo: /\b(prova|avalia[cç][aã]o|exame)\b/i.test(cw.title) ? 'avaliacao' : cw.workType === 'MULTIPLE_CHOICE_QUESTION' ? 'questionario' : 'tarefa',
+            fonte: 'classroom',
+            semHora: !cw.dueTime ? true : undefined,
+            descricao: cw.description ?? '',
+            nota: sub?.assignedGrade,
+          });
+        }
 
         const autorPostagem = resolverAutor(cw.creatorUserId, cw.title, true);
         const textoPrazo = `[${nomeDisciplina}] Atividade: ${cw.title}${
@@ -354,11 +360,11 @@ export async function buscarDadosGoogleClassroom(accessToken: string): Promise<P
           id: `classroom-msg-cw-${cw.id}`,
           texto: textoPrazo,
           fonte: 'classroom',
-          tipo: 'prazo',
+          tipo: prazoISO ? 'prazo' : 'comunicado',
           disciplina: nomeDisciplina,
           recebidoEm: cw.creationTime ?? dataISO,
-          prazo: formatarPrazoISO(cw.dueDate, cw.dueTime),
-          prazoSemHora: !cw.dueTime,
+          prazo: prazoISO,
+          prazoSemHora: prazoISO && !cw.dueTime ? true : undefined,
           autor: autorPostagem,
         });
       }

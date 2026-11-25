@@ -1,6 +1,20 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, Platform, Pressable, TextInput, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import {
+  COR_OCORRENCIA,
+  DURACOES_HORAS,
+  ROTULO_OCORRENCIA,
+  destaquePorLocal,
+  lerOcorrenciasSalvas,
+  novaOcorrencia,
+  ocorrenciasAtivas,
+  removerOcorrencia,
+  rotuloDuracao,
+  type OcorrenciaMapa,
+  type TipoOcorrencia,
+} from '@/lib/ocorrenciasMapa';
 
 import { Cartao, Icone, Selo, Txt } from '@/components/ui';
 import {
@@ -16,7 +30,9 @@ import { useTheme } from '@/hooks/use-theme';
 const NativeWebView = WebView as React.ComponentType<any>;
 
 /** Mensagem que o mapa (Leaflet) manda para o app: pino tocado ou falha ao carregar. */
-type MensagemMapa = { tipo: 'selecionar'; id: string } | { tipo: 'erro' };
+type MensagemMapa = { tipo: 'selecionar'; id: string } | { tipo: 'erro' } | { tipo: 'pronto' };
+
+const CHAVE_OCORRENCIAS = 'astra.mapa.ocorrencias';
 
 function lerMensagemDoMapa(bruto: unknown): MensagemMapa | null {
   if (typeof bruto !== 'string') return null;
@@ -25,6 +41,7 @@ function lerMensagemDoMapa(bruto: unknown): MensagemMapa | null {
     if (msg?.origem !== 'astra-mapa') return null;
     if (msg.tipo === 'selecionar' && typeof msg.id === 'string') return { tipo: 'selecionar', id: msg.id };
     if (msg.tipo === 'erro') return { tipo: 'erro' };
+    if (msg.tipo === 'pronto') return { tipo: 'pronto' };
     return null;
   } catch {
     return null;
@@ -75,15 +92,72 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
     executarNoMapa('if (window.verCampusTodo) window.verCampusTodo()');
   }, [executarNoMapa]);
 
-  const tratarMensagem = useCallback((msg: MensagemMapa | null) => {
-    if (!msg) return;
-    if (msg.tipo === 'erro') {
-      setFalhou(true);
-      return;
-    }
-    const achado = LOCAIS_UFRPE.find((l) => l.id === msg.id);
-    if (achado) setSelecionado(achado);
+  // Avisos de manutenção e eventos feitos pelos alunos (ficam salvos neste aparelho)
+  const [ocorrencias, setOcorrencias] = useState<OcorrenciaMapa[]>([]);
+  const [carregouOcorrencias, setCarregouOcorrencias] = useState(false);
+  const [formAberto, setFormAberto] = useState(false);
+  const [tipoNovo, setTipoNovo] = useState<TipoOcorrencia>('manutencao');
+  const [tituloNovo, setTituloNovo] = useState('');
+  const [horasNovas, setHorasNovas] = useState(24);
+  const [agora, setAgora] = useState(() => new Date());
+
+  const ativas = useMemo(() => ocorrenciasAtivas(ocorrencias, agora), [ocorrencias, agora]);
+  const destaques = useMemo(() => destaquePorLocal(ativas, agora), [ativas, agora]);
+  const destaquesJson = useMemo(() => JSON.stringify(destaques), [destaques]);
+  const destaquesRef = useRef(destaquesJson);
+  destaquesRef.current = destaquesJson;
+
+  useEffect(() => {
+    AsyncStorage.getItem(CHAVE_OCORRENCIAS)
+      .then((bruto) => setOcorrencias(lerOcorrenciasSalvas(bruto)))
+      .catch(() => {})
+      .finally(() => setCarregouOcorrencias(true));
   }, []);
+
+  useEffect(() => {
+    if (!carregouOcorrencias) return;
+    AsyncStorage.setItem(CHAVE_OCORRENCIAS, JSON.stringify(ocorrencias)).catch(() => {});
+  }, [ocorrencias, carregouOcorrencias]);
+
+  // Reavalia a cada minuto: aviso vencido faz o pino voltar à cor normal sozinho
+  useEffect(() => {
+    const timer = setInterval(() => setAgora(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const enviarDestaques = useCallback(() => {
+    executarNoMapa(`if (window.aplicarDestaques) window.aplicarDestaques(${destaquesRef.current})`);
+  }, [executarNoMapa]);
+
+  useEffect(() => {
+    enviarDestaques();
+  }, [destaquesJson, enviarDestaques]);
+
+  const tratarMensagem = useCallback(
+    (msg: MensagemMapa | null) => {
+      if (!msg) return;
+      if (msg.tipo === 'erro') {
+        setFalhou(true);
+        return;
+      }
+      if (msg.tipo === 'pronto') {
+        enviarDestaques();
+        return;
+      }
+      const achado = LOCAIS_UFRPE.find((l) => l.id === msg.id);
+      if (achado) setSelecionado(achado);
+    },
+    [enviarDestaques]
+  );
+
+  function marcarNoPredio() {
+    const nova = novaOcorrencia({ localId: selecionado.id, tipo: tipoNovo, titulo: tituloNovo, horas: horasNovas });
+    if (!nova) return;
+    setOcorrencias((lista) => [nova, ...lista]);
+    setAgora(new Date());
+    setTituloNovo('');
+    setFormAberto(false);
+  }
 
   // Se o curso mudar no perfil, o pino selecionado passa a ser o novo prédio.
   // (O HTML do mapa é refeito com esse prédio no centro, então não precisa mover o mapa aqui.)
@@ -181,13 +255,19 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
 
             const marcadores = {};
 
+            // Avisos dos alunos: { idDoLocal: 'manutencao' | 'evento' }. Sem aviso, o pino tem a cor normal.
+            const coresAviso = { manutencao: '${COR_OCORRENCIA.manutencao}', evento: '${COR_OCORRENCIA.evento}' };
+            let destaques = {};
+
             function criarIcone(local, ativo) {
-              const tamanho = ativo ? 34 : 26;
-              const bg = ativo ? corPrimaria : '#475569';
-              const texto = local.sigla ? local.sigla.slice(0, 4) : '•';
+              const aviso = destaques[local.id];
+              const tamanho = ativo ? 34 : aviso ? 30 : 26;
+              const bg = aviso ? coresAviso[aviso] : ativo ? corPrimaria : '#475569';
+              const texto = aviso === 'manutencao' ? '!' : aviso === 'evento' ? '★' : local.sigla ? local.sigla.slice(0, 4) : '•';
+              const anel = aviso ? 'box-shadow:0 0 0 4px ' + bg + '55, 0 2px 6px rgba(0,0,0,0.35);' : '';
               return L.divIcon({
                 className: '',
-                html: '<div class="pino-custom" style="width:' + tamanho + 'px;height:' + tamanho + 'px;background:' + bg + ';">' + texto + '</div>',
+                html: '<div class="pino-custom" style="width:' + tamanho + 'px;height:' + tamanho + 'px;background:' + bg + ';' + anel + '">' + texto + '</div>',
                 iconSize: [tamanho, tamanho],
                 iconAnchor: [tamanho / 2, tamanho / 2]
               });
@@ -220,6 +300,16 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
             window.verCampusTodo = function() {
               map.flyTo([${CENTRO_UFRPE.latitude}, ${CENTRO_UFRPE.longitude}], 15, { duration: 0.6 });
             };
+
+            window.aplicarDestaques = function(novos) {
+              destaques = novos || {};
+              Object.keys(marcadores).forEach(function(id) {
+                marcadores[id].marker.setIcon(criarIcone(marcadores[id].local, id === idAtivo));
+                marcadores[id].marker.setZIndexOffset(destaques[id] ? 1000 : 0);
+              });
+            };
+
+            enviar({ tipo: 'pronto' });
           </script>
         </body>
       </html>
@@ -427,7 +517,127 @@ export function MapaCampus({ cursoUsuario, onIrParaPerfil }: MapaCampusProps) {
         <Txt v="legenda" cor="textSecondary">
           {selecionado.descricao}
         </Txt>
+        {ativas
+          .filter((o) => o.localId === selecionado.id)
+          .map((o) => (
+            <View key={o.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: COR_OCORRENCIA[o.tipo] }} />
+              <Txt v="legenda" style={{ flex: 1 }}>
+                <Txt v="legenda" style={{ fontWeight: '700' }}>{ROTULO_OCORRENCIA[o.tipo]}: </Txt>
+                {o.titulo} · até {new Date(o.ate).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </Txt>
+              <Pressable
+                onPress={() => setOcorrencias((l) => removerOcorrencia(l, o.id))}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Remover aviso (já foi resolvido ou não existe mais)"
+              >
+                <Icone nome="trash-outline" tamanho={18} cor="danger" />
+              </Pressable>
+            </View>
+          ))}
       </View>
+
+      {/* Alunos avisam manutenção e eventos: o pino muda de cor até o aviso acabar */}
+      <View style={{ flexDirection: 'row', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        {(['manutencao', 'evento'] as TipoOcorrencia[]).map((tp) => (
+          <View key={tp} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: COR_OCORRENCIA[tp] }} />
+            <Txt v="legenda" cor="textSecondary">{ROTULO_OCORRENCIA[tp]}</Txt>
+          </View>
+        ))}
+        <Pressable
+          onPress={() => setFormAberto((v) => !v)}
+          hitSlop={8}
+          accessibilityRole="button"
+          style={{ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: 'auto' }}
+        >
+          <Icone nome={formAberto ? 'close-circle' : 'construct-outline'} tamanho={16} cor="primary" />
+          <Txt v="legenda" cor="primary" style={{ fontWeight: '700' }}>
+            {formAberto ? 'Cancelar' : 'Avisar neste prédio'}
+          </Txt>
+        </Pressable>
+      </View>
+
+      {formAberto ? (
+        <View style={{ borderWidth: 1, borderColor: t.border, borderRadius: 10, padding: 10, gap: 10, backgroundColor: t.surface }}>
+          <Txt v="legenda" cor="textSecondary">
+            Prédio: {selecionado.nome}
+          </Txt>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['manutencao', 'evento'] as TipoOcorrencia[]).map((tp) => {
+              const marcado = tipoNovo === tp;
+              return (
+                <Pressable
+                  key={tp}
+                  onPress={() => setTipoNovo(tp)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: marcado }}
+                  style={{
+                    flex: 1,
+                    minHeight: 40,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderWidth: 2,
+                    borderColor: COR_OCORRENCIA[tp],
+                    backgroundColor: marcado ? COR_OCORRENCIA[tp] : 'transparent',
+                  }}
+                >
+                  <Txt v="legenda" style={{ fontWeight: '700', color: marcado ? '#fff' : COR_OCORRENCIA[tp] }}>
+                    {ROTULO_OCORRENCIA[tp]}
+                  </Txt>
+                </Pressable>
+              );
+            })}
+          </View>
+          <TextInput
+            value={tituloNovo}
+            onChangeText={setTituloNovo}
+            maxLength={80}
+            placeholder={tipoNovo === 'manutencao' ? 'Ex.: elevador quebrado, sem energia' : 'Ex.: feira de ciências, palestra'}
+            placeholderTextColor={t.textMuted}
+            style={{ borderWidth: 1, borderColor: t.border, borderRadius: 10, paddingHorizontal: 10, minHeight: 40, color: t.text, fontSize: 14 }}
+          />
+          <Txt v="legenda" cor="textSecondary">Vale por quanto tempo?</Txt>
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+            {DURACOES_HORAS.map((h) => (
+              <Pressable
+                key={h}
+                onPress={() => setHorasNovas(h)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: horasNovas === h }}
+                style={{
+                  paddingHorizontal: 12,
+                  minHeight: 36,
+                  justifyContent: 'center',
+                  borderRadius: 999,
+                  backgroundColor: horasNovas === h ? t.primary : t.primarySoft,
+                }}
+              >
+                <Txt v="legenda" style={{ fontWeight: '700', color: horasNovas === h ? '#fff' : t.primary }}>
+                  {rotuloDuracao(h)}
+                </Txt>
+              </Pressable>
+            ))}
+          </View>
+          <Pressable
+            onPress={marcarNoPredio}
+            disabled={!tituloNovo.trim()}
+            accessibilityRole="button"
+            style={{
+              minHeight: 44,
+              borderRadius: 10,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: COR_OCORRENCIA[tipoNovo],
+              opacity: tituloNovo.trim() ? 1 : 0.4,
+            }}
+          >
+            <Txt v="corpo" style={{ color: '#fff', fontWeight: '700' }}>Marcar no mapa</Txt>
+          </Pressable>
+        </View>
+      ) : null}
     </Cartao>
   );
 }

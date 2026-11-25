@@ -25,8 +25,9 @@ export function extrairPrazoDetalhado(texto: string, base: Date = new Date()): {
     if (ano < 100) ano += 2000;
     const candidata = new Date(ano, mes, dia);
     if (candidata.getMonth() === mes) {
-      // Sem ano no texto e a data já passou: assume o próximo ano
-      if (!dm[3] && candidata.getTime() < base.getTime() - 86400000) candidata.setFullYear(ano + 1);
+      // Sem ano no texto: só vai para o próximo ano se a data passou há muito tempo (mais de 90 dias).
+      // Uma data de poucos dias atrás ("a prova foi dia 05/11") continua sendo do passado, não de daqui a um ano.
+      if (!dm[3] && candidata.getTime() < base.getTime() - 90 * 86400000) candidata.setFullYear(ano + 1);
       data = candidata;
     }
   } else if (/\bamanha\b/.test(t)) {
@@ -35,7 +36,9 @@ export function extrairPrazoDetalhado(texto: string, base: Date = new Date()): {
     data = new Date(base.getFullYear(), base.getMonth(), base.getDate());
   } else {
     for (let i = 0; i < DIAS_SEMANA.length; i++) {
-      if (new RegExp(`\\b${DIAS_SEMANA[i]}\\b`).test(t)) {
+      // "segunda chamada", "segunda prova", "quarta unidade" não são dias da semana
+      const dia = new RegExp(`\\b${DIAS_SEMANA[i]}\\b(?!\\s+(?:chamada|prova|unidade|avaliacao|via|etapa|lista|parte|versao|opcao|fase))`);
+      if (dia.test(t)) {
         const falta = (i - base.getDay() + 7) % 7 || 7;
         data = new Date(base.getFullYear(), base.getMonth(), base.getDate() + falta);
         break;
@@ -53,8 +56,20 @@ export function extrairPrazoDetalhado(texto: string, base: Date = new Date()): {
   return { data, temHora: false };
 }
 
+/** "não teremos prova", "prova cancelada", "sem entrega": o aviso fala de uma prova que NÃO existe. */
+const ALVO = '(?:prova|avaliacao|exame|entrega|prazo|lista|trabalho|atividade|questionario|seminario)';
+const GATILHO = '(?:nao (?:havera|teremos|tera|vai ter|vamos ter|tem|ha|sera|precisa|precisam)|sem (?:prova|avaliacao|aula)|dispensad[ao]s?|cancelad[ao]s?|cancelo|cancelamos|cancelar|suspens[ao]s?|nao (?:vai|vao) (?:acontecer|haver))';
+// o gatilho precisa estar colado ao alvo ("não teremos prova", "prova cancelada"), não em outra frase
+const NEGACAO = new RegExp(`\\b${GATILHO}\\b(?:\\s+\\S+){0,3}?\\s+${ALVO}\\b|\\b${ALVO}\\b(?:\\s+\\S+){0,4}?\\s+${GATILHO}\\b`);
+/** "gabarito da prova", "resultado da prova", "a prova foi aplicada": já aconteceu, não é prazo futuro. */
+const JA_ACONTECEU = /\b(gabarito|resultados?|notas? d[aeo]|corrigid[ao]s?|vista d[aeo]|revisao d[aeo]|ja foi|foi aplicad[ao]|foi realizad[ao]|foram divulgad[ao]s?)\b/;
+const PALAVRA_DE_PRAZO = /\b(prova|avaliacao|exame|entrega|entregar|prazo|lista|trabalho|atividade|questionario|seminario|p1|p2|1va|2va)\b/;
+
 export function detectarTipo(texto: string): TipoAviso {
   const t = normalizar(texto);
+  if (PALAVRA_DE_PRAZO.test(t) && (NEGACAO.test(t) || JA_ACONTECEU.test(t))) {
+    return /\b(gabarito|slide|slides|material|pdf|resumo)\b/.test(t) ? 'material' : 'comunicado';
+  }
   if (/\b(prova|avaliacao|exame|entrega|entregar|prazo|lista|trabalho|atividade|questionario|seminario|p1|p2|1va|2va)\b/.test(t)) {
     return 'prazo';
   }

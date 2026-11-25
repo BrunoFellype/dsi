@@ -13,6 +13,17 @@ function tituloAtividade(a) {
   return a.examDescription;
 }
 
+/**
+ * A biblioteca lê "25/10/2026 14:30" como horário local da máquina. O SIGAA fala em horário de
+ * Brasília: numa ponte rodando em servidor UTC isso deslocava a entrega em 3 h (e, à meia-noite,
+ * para o dia anterior). Aqui a hora de parede lida vira sempre um instante de Brasília (UTC-3).
+ */
+function isoDeBrasilia(d) {
+  const p = (n, t = 2) => String(n).padStart(t, '0');
+  const texto = `${p(d.getFullYear(), 4)}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:00-03:00`;
+  return new Date(texto).toISOString();
+}
+
 // Cada seção roda isolada: se uma falhar, as outras continuam.
 async function seguro(fn, padrao) {
   try {
@@ -51,7 +62,7 @@ async function buscarResumo(Sigaa, { url, usuario, senha }) {
           tipo: tipoAtividade[a.type] || 'tarefa',
           titulo: tituloAtividade(a),
           disciplina: a.courseTitle,
-          data: a.date.toISOString(),
+          data: isoDeBrasilia(a.date),
           concluida: Boolean(a.done)
         }))
         .sort((a, b) => a.data.localeCompare(b.data)),
@@ -95,4 +106,4 @@ function ehErroDeCredencial(erro) {
   return /invalid credentials|usu[aá]rio|senha|credenc/i.test(String((erro && erro.message) || ''));
 }
 
-module.exports = { buscarResumo, ehErroDeCredencial, cargaHorariaDoRelatorio };
+module.exports = { buscarResumo, ehErroDeCredencial, cargaHorariaDoRelatorio, isoDeBrasilia };

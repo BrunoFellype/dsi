@@ -1,6 +1,7 @@
 /**
  * Agrupamento de avisos (Seção 2.2 do artigo):
- *  - vetorização TF-IDF;
+ *  - pesos TF-IDF: indicam a relevância de cada termo (frequência no aviso x raridade nos demais);
+ *    esses pesos formam os vetores esparsos que o K-Means compara (não é embedding, não captura significado);
  *  - K-Means (esférico, com inicialização k-means++);
  *  - número de grupos k escolhido pelo Coeficiente de Silhueta;
  *  - correções do estudante (human-in-the-loop) aplicadas por cima do resultado.

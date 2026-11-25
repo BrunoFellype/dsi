@@ -63,8 +63,10 @@ test('horário confirmado muda a hora; "não informado" tira da lista de pendent
 });
 
 test('no SIGAA, meia-noite é "sem horário" e a chave não depende do id', () => {
-  assert.ok(semHoraNoSigaa(new Date(2026, 9, 25, 0, 0).toISOString()));
-  assert.ok(!semHoraNoSigaa(new Date(2026, 9, 25, 14, 0).toISOString()));
+  // Datas reais do portal (sem hora), já em horário de Brasília, valem em qualquer fuso da máquina.
+  assert.ok(semHoraNoSigaa('2026-12-01T00:00:00-03:00'));
+  assert.ok(semHoraNoSigaa(new Date('2026-12-07T00:00:00-03:00').toISOString()));
+  assert.ok(!semHoraNoSigaa('2026-12-10T14:00:00-03:00'));
   const s1 = atividade({ id: 'sigaa-0-1', fonte: 'sigaa' });
   const s2 = atividade({ id: 'sigaa-7-1', fonte: 'sigaa' });
   assert.equal(chaveHorario(s1), chaveHorario(s2));
